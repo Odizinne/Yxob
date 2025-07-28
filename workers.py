@@ -1,6 +1,7 @@
 import asyncio
 import whisper
 import os
+from datetime import datetime
 from PySide6.QtCore import QThread, Signal
 from discord.ext import commands
 
@@ -26,7 +27,6 @@ class AsyncWorker(QThread):
     def stop(self):
         self.should_stop = True
         if self.loop and not self.loop.is_closed():
-            # Import bot from discord_recorder to avoid circular import
             from discord_recorder import bot
             asyncio.run_coroutine_threadsafe(bot.close(), self.loop)
 
@@ -40,12 +40,10 @@ class TranscriptionWorker(QThread):
     finished = Signal()
     error = Signal(str)
 
-    def __init__(self, files_to_transcribe, recordings_dir):
+    def __init__(self, files_to_transcribe, base_recordings_dir):
         super().__init__()
         self.files_to_transcribe = files_to_transcribe
-        self.recordings_dir = recordings_dir
-        self.transcripts_dir = os.path.join(recordings_dir, "transcripts")
-        os.makedirs(self.transcripts_dir, exist_ok=True)
+        self.base_recordings_dir = base_recordings_dir
 
     def run(self):
         try:
@@ -61,8 +59,19 @@ class TranscriptionWorker(QThread):
 
                 result = model.transcribe(wav_file)
 
+                # Determine the correct transcripts directory based on the file location
+                file_dir = os.path.dirname(wav_file)
+                if file_dir == self.base_recordings_dir:
+                    # File is in root recordings directory
+                    transcripts_dir = os.path.join(self.base_recordings_dir, "transcripts")
+                else:
+                    # File is in a date subdirectory
+                    transcripts_dir = os.path.join(file_dir, "transcripts")
+                
+                os.makedirs(transcripts_dir, exist_ok=True)
+
                 base_name = os.path.splitext(os.path.basename(wav_file))[0]
-                transcript_file = os.path.join(self.transcripts_dir, f"{base_name}.txt")
+                transcript_file = os.path.join(transcripts_dir, f"{base_name}.txt")
 
                 with open(transcript_file, "w", encoding="utf-8") as f:
                     f.write(f"Transcript for: {os.path.basename(wav_file)}\n")
@@ -84,7 +93,6 @@ class TranscriptionWorker(QThread):
             self.error.emit(f"Transcription error: {str(e)}")
 
     def _format_timestamp(self, seconds):
-        """Format timestamp as HH:MM:SS.mmm"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = seconds % 60

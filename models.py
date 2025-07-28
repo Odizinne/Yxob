@@ -1,5 +1,6 @@
 import os
 import glob
+from datetime import datetime
 from PySide6.QtCore import (
     QAbstractListModel,
     Qt,
@@ -143,6 +144,8 @@ class RecordingsListModel(QAbstractListModel):
             return recording["size"]
         elif role == Qt.UserRole + 3:
             return recording["hasTranscript"]
+        elif role == Qt.UserRole + 4:  # Add date folder info
+            return recording["dateFolder"]
 
         return None
 
@@ -153,10 +156,10 @@ class RecordingsListModel(QAbstractListModel):
             Qt.UserRole + 1: b"selected",
             Qt.UserRole + 2: b"size",
             Qt.UserRole + 3: b"hasTranscript",
+            Qt.UserRole + 4: b"dateFolder",
         }
 
     def delete_selected_files(self):
-        """Delete selected recording files and remove them from the model"""
         files_to_delete = []
         indices_to_remove = []
 
@@ -180,35 +183,71 @@ class RecordingsListModel(QAbstractListModel):
 
         return deleted_count
 
-    def refresh_recordings(self, recordings_dir):
-        transcripts_dir = os.path.join(recordings_dir, "transcripts")
-
+    def refresh_recordings(self, base_recordings_dir):
+        """Scan all date folders for recordings"""
         self.beginResetModel()
         self._recordings.clear()
 
-        wav_pattern = os.path.join(recordings_dir, "*.wav")
-        wav_files = glob.glob(wav_pattern)
+        # Scan for date folders (YYYY-MM-DD format)
+        date_folders = []
+        if os.path.exists(base_recordings_dir):
+            for item in os.listdir(base_recordings_dir):
+                item_path = os.path.join(base_recordings_dir, item)
+                if os.path.isdir(item_path) and self._is_date_folder(item):
+                    date_folders.append(item)
+        
+        # Also check for any .wav files in the root (for backward compatibility)
+        root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
+        if root_wav_files:
+            date_folders.append("")  # Empty string represents root folder
 
-        for wav_file in sorted(wav_files):
-            file_size = os.path.getsize(wav_file)
-            size_str = self._format_file_size(file_size)
+        # Sort date folders (newest first)
+        date_folders.sort(reverse=True)
 
-            base_name = os.path.splitext(os.path.basename(wav_file))[0]
-            transcript_path = os.path.join(transcripts_dir, f"{base_name}.txt")
-            has_transcript = os.path.exists(transcript_path)
+        for date_folder in date_folders:
+            if date_folder == "":
+                # Root folder
+                folder_path = base_recordings_dir
+                transcripts_dir = os.path.join(base_recordings_dir, "transcripts")
+                display_folder = "Root"
+            else:
+                # Date folder
+                folder_path = os.path.join(base_recordings_dir, date_folder)
+                transcripts_dir = os.path.join(folder_path, "transcripts")
+                display_folder = date_folder
 
-            self._recordings.append(
-                {
-                    "name": os.path.basename(wav_file),
-                    "path": wav_file,
-                    "selected": False,
-                    "size": size_str,
-                    "hasTranscript": has_transcript,
-                }
-            )
+            wav_pattern = os.path.join(folder_path, "*.wav")
+            wav_files = glob.glob(wav_pattern)
+
+            for wav_file in sorted(wav_files):
+                file_size = os.path.getsize(wav_file)
+                size_str = self._format_file_size(file_size)
+
+                base_name = os.path.splitext(os.path.basename(wav_file))[0]
+                transcript_path = os.path.join(transcripts_dir, f"{base_name}.txt")
+                has_transcript = os.path.exists(transcript_path)
+
+                self._recordings.append(
+                    {
+                        "name": os.path.basename(wav_file),
+                        "path": wav_file,
+                        "selected": False,
+                        "size": size_str,
+                        "hasTranscript": has_transcript,
+                        "dateFolder": display_folder,
+                    }
+                )
 
         self.endResetModel()
-        print(f"Refreshed recordings list: {len(self._recordings)} files found")
+        print(f"Refreshed recordings list: {len(self._recordings)} files found across {len(date_folders)} folders")
+
+    def _is_date_folder(self, folder_name):
+        """Check if folder name matches YYYY-MM-DD format"""
+        try:
+            datetime.strptime(folder_name, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
 
     def _format_file_size(self, size_bytes):
         if size_bytes < 1024:

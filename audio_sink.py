@@ -11,12 +11,18 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         self.files = {}
         self.sessionid = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.callback = callback
-        self.user_session_count = {}  # Track how many times each user joined
+        self.user_session_count = {}
         
-        self.recordings_dir = QStandardPaths.writableLocation(
+        # Base recordings directory
+        self.base_recordings_dir = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.AppDataLocation
         )
+        
+        # Create date-based subdirectory
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        self.recordings_dir = os.path.join(self.base_recordings_dir, date_str)
         os.makedirs(self.recordings_dir, exist_ok=True)
+        
         print(f"Recordings will be saved to: {self.recordings_dir}")
 
     def wants_opus(self):
@@ -29,11 +35,9 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         user_id = str(user.id)
 
         if user_id not in self.files:
-            # Increment session count for this user
             session_count = self.user_session_count.get(user_id, 0) + 1
             self.user_session_count[user_id] = session_count
             
-            # Include session count in filename if user rejoined
             session_suffix = f"_session{session_count}" if session_count > 1 else ""
             filename = f"recording_{self.sessionid}_{user.display_name}{session_suffix}.wav"
             
@@ -53,7 +57,6 @@ class SimpleRecordingSink(voice_recv.AudioSink):
             self.files[user_id].writeframes(data.pcm)
 
     def finalize_user_recording(self, user_id):
-        """Close and finalize a specific user's recording"""
         if user_id in self.files:
             print(f"Finalizing recording for user ID: {user_id}")
             self.files[user_id].close()
@@ -62,7 +65,6 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         return False
 
     def cleanup(self):
-        """Close all remaining open files"""
         for user_id, wav_file in self.files.items():
             wav_file.close()
         user_ids = list(self.files.keys())
@@ -71,5 +73,4 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         return user_ids
 
     def get_active_users(self):
-        """Get list of currently recording user IDs"""
         return list(self.files.keys())

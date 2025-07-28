@@ -138,7 +138,8 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             color: "#ccc"
-                            Layout.preferredWidth: 80
+                            Layout.preferredWidth: 45
+
                         }
                         
                         Label {
@@ -147,6 +148,7 @@ ApplicationWindow {
                             font.bold: true
                             color: "#ccc"
                             Layout.preferredWidth: 60
+                            Layout.rightMargin: - 15
                         }
                     }
                 }
@@ -193,6 +195,8 @@ ApplicationWindow {
                             
                             CheckBox {
                                 Layout.preferredWidth: 60
+                                Layout.leftMargin: - 10
+                                Layout.rightMargin: 10
                                 checked: selected || false
                                 onToggled: {
                                     if (recorder) {
@@ -204,16 +208,9 @@ ApplicationWindow {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 2
-                                
+
                                 Label {
-                                    text: name || "Unknown"
-                                    Layout.fillWidth: true
-                                    font.pixelSize: 13
-                                    elide: Text.ElideRight
-                                    color: "#fff"
-                                }
-                                
-                                Label {
+                                    
                                     text: {
                                         if (!name) return ""
                                         let filename = name.toString()
@@ -227,9 +224,22 @@ ApplicationWindow {
                                         return filename
                                     }
                                     Layout.fillWidth: true
-                                    font.pixelSize: 10
-                                    color: "#999"
+                                    font.pixelSize: 13
                                     elide: Text.ElideRight
+                                    color: "#fff"
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    Label {
+                                        text: name || "Unknown"
+                                        Layout.fillWidth: true
+                                        font.pixelSize: 10
+                                        color: "#999"
+                                        elide: Text.ElideRight
+                                    }
                                 }
                             }
                             
