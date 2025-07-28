@@ -620,17 +620,25 @@ class DiscordRecorder(QObject):
         """Start transcription of selected recordings"""
         if self._is_transcribing:
             return
-            
+
+        # Clean up any existing worker first
+        if self._transcription_worker:
+            if self._transcription_worker.isRunning():
+                self._transcription_worker.terminate()
+                self._transcription_worker.wait()
+            self._transcription_worker.deleteLater()
+            self._transcription_worker = None
+
         selected_files = self._recordings_model.get_selected_files()
         if not selected_files:
             print("No files selected for transcription")
             return
-            
+
         print(f"Starting transcription of {len(selected_files)} files")
-        
+
         self._set_transcribing(True)
         self._set_transcription_status("Preparing transcription...")
-        
+
         # Create and start transcription worker
         self._transcription_worker = TranscriptionWorker(selected_files, self._recordings_dir)
         self._transcription_worker.progress.connect(self._set_transcription_status)
@@ -642,17 +650,28 @@ class DiscordRecorder(QObject):
         """Handle transcription completion"""
         self._set_transcribing(False)
         self._set_transcription_status("")
-        self._transcription_worker = None
-        
+
+        # Properly clean up the worker thread
+        if self._transcription_worker:
+            self._transcription_worker.wait()  # Wait for thread to finish
+            self._transcription_worker.deleteLater()  # Schedule for deletion
+            self._transcription_worker = None
+
         # Refresh recordings to show transcript status
         self.refreshRecordings()
         print("Transcription completed successfully")
-    
+
     def _on_transcription_error(self, error_message):
         """Handle transcription error"""
         self._set_transcribing(False)
         self._set_transcription_status(f"Error: {error_message}")
-        self._transcription_worker = None
+
+        # Properly clean up the worker thread
+        if self._transcription_worker:
+            self._transcription_worker.wait()  # Wait for thread to finish
+            self._transcription_worker.deleteLater()  # Schedule for deletion
+            self._transcription_worker = None
+
         print(f"Transcription error: {error_message}")
     
     @Slot()
@@ -669,6 +688,7 @@ class DiscordRecorder(QObject):
             print("Stopping transcription worker...")
             self._transcription_worker.terminate()
             self._transcription_worker.wait(3000)
+            self._transcription_worker.deleteLater()
             
         if self._worker:
             print("Stopping Discord bot worker...")
@@ -710,7 +730,7 @@ class DiscordRecorder(QObject):
             if not token:
                 self._set_status("No bot token found - please run setup")
                 return
-                
+
             await bot.start(token)
         except Exception as e:
             self._set_status(f"Bot error: {str(e)}")
