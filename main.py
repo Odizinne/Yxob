@@ -1,6 +1,5 @@
 import sys
 import asyncio
-import threading
 import discord
 from discord.ext import commands
 from discord.ext import voice_recv
@@ -10,9 +9,9 @@ import glob
 from datetime import datetime
 from pathlib import Path
 import whisper
-from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property, QAbstractListModel, Qt, QThread, QModelIndex, QStandardPaths, QUrl
+from PySide6.QtCore import QObject, Signal, Slot, Property, QAbstractListModel, Qt, QThread, QModelIndex, QStandardPaths, QUrl
 from PySide6.QtQml import qmlRegisterType, QmlElement
-from PySide6.QtGui import QGuiApplication, QDesktopServices
+from PySide6.QtGui import QGuiApplication, QDesktopServices, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from setup_manager import SetupManager
 
@@ -23,8 +22,6 @@ QML_IMPORT_MAJOR_VERSION = 1
 intents = discord.Intents.default()
 intents.voice_states = True
 intents.guilds = True
-intents.guild_messages = True
-intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
@@ -125,16 +122,24 @@ class TranscriptionWorker(QThread):
             for i, wav_file in enumerate(self.files_to_transcribe, 1):
                 self.progress.emit(f"Transcribing {os.path.basename(wav_file)} ({i}/{total_files})...")
                 
-                # Transcribe the audio
+                # Transcribe with segment-level timestamps
                 result = model.transcribe(wav_file)
                 
                 # Create transcript filename
                 base_name = os.path.splitext(os.path.basename(wav_file))[0]
                 transcript_file = os.path.join(self.transcripts_dir, f"{base_name}.txt")
                 
-                # Save transcript
+                # Save timestamped transcript
                 with open(transcript_file, 'w', encoding='utf-8') as f:
-                    f.write(result["text"])
+                    f.write(f"Transcript for: {os.path.basename(wav_file)}\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    for segment in result["segments"]:
+                        start_time = self._format_timestamp(segment["start"])
+                        end_time = self._format_timestamp(segment["end"])
+                        text = segment["text"].strip()
+                        
+                        f.write(f"[{start_time} -> {end_time}] {text}\n")
                 
                 print(f"Transcript saved: {transcript_file}")
             
@@ -143,6 +148,17 @@ class TranscriptionWorker(QThread):
             
         except Exception as e:
             self.error.emit(f"Transcription error: {str(e)}")
+    
+    def _format_timestamp(self, seconds):
+        """Format timestamp as HH:MM:SS.mmm"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+        else:
+            return f"{minutes:02d}:{secs:06.3f}"
 
 @QmlElement
 class GuildsListModel(QAbstractListModel):
@@ -438,6 +454,7 @@ class DiscordRecorder(QObject):
     hasSelectedRecordingsChanged = Signal(bool)
     guildsUpdated = Signal()  # New signal for guild updates
     channelsUpdated = Signal()  # New signal for channel updates
+    joinedStateChanged = Signal(bool)  # New signal
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -456,6 +473,7 @@ class DiscordRecorder(QObject):
         self._transcription_status = ""
         self._selected_guild_index = -1  # Track selected guild
         self._selected_channel_index = -1  # Track selected channel
+        self._is_joined = False  # New property
         
         # Store recordings directory for easy access
         self._recordings_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
@@ -515,7 +533,11 @@ class DiscordRecorder(QObject):
     @Property(int, notify=channelsUpdated) 
     def selectedChannelIndex(self):
         return self._selected_channel_index
-        
+
+    @Property(bool, notify=joinedStateChanged)
+    def isJoined(self):
+        return self._is_joined
+    
     def _set_status(self, status):
         if self._status != status:
             self._status = status
@@ -541,6 +563,11 @@ class DiscordRecorder(QObject):
         if self._transcription_status != status:
             self._transcription_status = status
             self.transcriptionStatusChanged.emit(status)
+
+    def _set_joined(self, joined):
+        if self._is_joined != joined:
+            self._is_joined = joined
+            self.joinedStateChanged.emit(joined)
     
     @Slot(int)
     def setSelectedGuild(self, index):
@@ -645,7 +672,101 @@ class DiscordRecorder(QObject):
         self._transcription_worker.finished.connect(self._on_transcription_finished)
         self._transcription_worker.error.connect(self._on_transcription_error)
         self._transcription_worker.start()
+
+    @Slot()
+    def joinChannel(self):
+        if self._worker and self._worker.loop:
+            asyncio.run_coroutine_threadsafe(self._join_channel_async(), self._worker.loop)
+
+    async def _join_channel_async(self):
+        try:
+            if self._voice_client:
+                self._set_status("Already connected to a voice channel")
+                return
+                
+            if not bot.guilds:
+                self._set_status("No guilds found - bot needs to be in a server")
+                return
+            
+            # Use selected guild and channel (same logic as recording)
+            guild = None
+            voice_channel = None
+            
+            if self._selected_guild_index >= 0 and self._selected_guild_index < len(bot.guilds):
+                guild = bot.guilds[self._selected_guild_index]
+                
+                if self._selected_channel_index >= 0 and self._selected_channel_index < len(guild.voice_channels):
+                    voice_channel = guild.voice_channels[self._selected_channel_index]
+                else:
+                    # Fallback to first channel with members
+                    for channel in guild.voice_channels:
+                        if channel.members:
+                            voice_channel = channel
+                            break
+                    
+                    if not voice_channel and guild.voice_channels:
+                        voice_channel = guild.voice_channels[0]
+            else:
+                guild = bot.guilds[0]
+                for channel in guild.voice_channels:
+                    if channel.members:
+                        voice_channel = channel
+                        break
+                        
+                if not voice_channel and guild.voice_channels:
+                    voice_channel = guild.voice_channels[0]
+            
+            if not voice_channel:
+                self._set_status("No voice channels found")
+                return
+            
+            print(f"Joining voice channel: {voice_channel.name} in guild: {guild.name}")
+            self._voice_client = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+            
+            self._set_joined(True)
+            self._set_status(f"Joined {voice_channel.name} ({guild.name})")
+            print("Successfully joined voice channel")
+            
+        except Exception as e:
+            self._set_status(f"Error joining channel: {str(e)}")
+            print(f"Join error: {e}")
     
+    @Slot()
+    def leaveChannel(self):
+        if self._worker and self._worker.loop:
+            asyncio.run_coroutine_threadsafe(self._leave_channel_async(), self._worker.loop)
+        
+    async def _leave_channel_async(self):
+        try:
+            if not self._voice_client:
+                self._set_status("Not connected to any voice channel")
+                return
+                
+            # Stop recording if active
+            if self._is_recording:
+                if self._current_sink:
+                    self._voice_client.stop_listening()
+                    recorded_users = self._current_sink.cleanup()
+                    self._current_sink = None
+                    
+                self._set_recording(False)
+                
+                # Clear user list
+                self.clearUserList.emit()
+                self.refreshRecordings()
+            
+            # Disconnect from voice channel
+            await self._voice_client.disconnect()
+            self._voice_client = None
+            
+            self._set_joined(False)
+            self._set_status("Left voice channel")
+            print("Successfully left voice channel")
+            
+        except Exception as e:
+            self._set_status(f"Error leaving channel: {str(e)}")
+            print(f"Leave error: {e}")
+
     def _on_transcription_finished(self):
         """Handle transcription completion"""
         self._set_transcribing(False)
@@ -703,14 +824,12 @@ class DiscordRecorder(QObject):
             self._set_bot_connected(True)
             print(f"Bot is ready. Connected to {len(bot.guilds)} guilds")
             
-            # Populate guilds
             self._guilds_model.clear_guilds()
             for guild in bot.guilds:
                 self._guilds_model.add_guild(guild.name, str(guild.id))
             
             self.guildsUpdated.emit()
             
-            # If we have guilds, select the first one and update channels
             if bot.guilds:
                 self._selected_guild_index = 0
                 await self._update_channels_for_guild(0)
@@ -743,53 +862,25 @@ class DiscordRecorder(QObject):
         
     async def _start_recording_async(self):
         try:
-            if not bot.guilds:
-                self._set_status("No guilds found - bot needs to be in a server")
-                return
+            # Join channel first if not already joined
+            if not self._voice_client:
+                await self._join_channel_async()
+                if not self._voice_client:
+                    return  # Join failed
             
-            # Use selected guild and channel
-            guild = None
-            voice_channel = None
-            
-            if self._selected_guild_index >= 0 and self._selected_guild_index < len(bot.guilds):
-                guild = bot.guilds[self._selected_guild_index]
-                print(f"Using selected guild: {guild.name}")
-                
-                if self._selected_channel_index >= 0 and self._selected_channel_index < len(guild.voice_channels):
-                    voice_channel = guild.voice_channels[self._selected_channel_index]
-                    print(f"Using selected channel: {voice_channel.name}")
-                else:
-                    # Fallback to first channel with members
-                    for channel in guild.voice_channels:
-                        if channel.members:
-                            voice_channel = channel
-                            break
-                    
-                    # If no channels have members, use first available
-                    if not voice_channel and guild.voice_channels:
-                        voice_channel = guild.voice_channels[0]
-            else:
-                # Fallback to original behavior
-                guild = bot.guilds[0]
-                for channel in guild.voice_channels:
-                    if channel.members:
-                        voice_channel = channel
-                        break
-                        
-                if not voice_channel and guild.voice_channels:
-                    voice_channel = guild.voice_channels[0]
-            
-            if not voice_channel:
-                self._set_status("No voice channels found")
-                return
-            
-            print(f"Connecting to voice channel: {voice_channel.name} in guild: {guild.name}")
-            self._voice_client = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+            # Start recording
             self._current_sink = SimpleRecordingSink(callback=self)
             self._voice_client.listen(self._current_sink)
             
             self._set_recording(True)
-            self._set_status(f"Recording in {voice_channel.name} ({guild.name})")
+            channel_name = "Unknown"
+            guild_name = "Unknown"
+            
+            if self._voice_client.channel:
+                channel_name = self._voice_client.channel.name
+                guild_name = self._voice_client.channel.guild.name
+                
+            self._set_status(f"Recording in {channel_name} ({guild_name})")
             print("Recording started successfully")
             
         except Exception as e:
@@ -803,23 +894,29 @@ class DiscordRecorder(QObject):
         
     async def _stop_recording_async(self):
         try:
-            if self._voice_client:
-                self._voice_client.stop_listening()
-                await self._voice_client.disconnect()
-                self._voice_client = None
+            if not self._voice_client:
+                self._set_status("Not connected to any voice channel")
+                return
                 
+            # Stop recording but stay in channel
             if self._current_sink:
+                self._voice_client.stop_listening()
                 recorded_users = self._current_sink.cleanup()
                 self._current_sink = None
                 
             self._set_recording(False)
-            self._set_status("Recording stopped")
             
-            # Clear the user list using signal (thread-safe)
-            print("Emitting clearUserList signal")
+            channel_name = "Unknown"
+            guild_name = "Unknown"
+            
+            if self._voice_client.channel:
+                channel_name = self._voice_client.channel.name
+                guild_name = self._voice_client.channel.guild.name
+                
+            self._set_status(f"Recording stopped - still in {channel_name} ({guild_name})")
+            
+            # Clear the user list
             self.clearUserList.emit()
-            
-            # Refresh recordings list to show new recordings
             self.refreshRecordings()
             
         except Exception as e:
@@ -839,10 +936,14 @@ class DiscordRecorder(QObject):
 
 def main():
     app = QGuiApplication(sys.argv)
-    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icon = os.path.join(script_dir, "qml/icons/mic.png")
+
+
     # Set application organization and name for QStandardPaths
     app.setOrganizationName("Odizinne")
     app.setApplicationName("Yxob")
+    app.setWindowIcon(QIcon(icon))
     
     # Register QML types
     qmlRegisterType(DiscordRecorder, "DiscordRecorder", 1, 0, "DiscordRecorder")

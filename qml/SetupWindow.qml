@@ -7,7 +7,7 @@ ApplicationWindow {
     id: setupWindow
     visible: true
     width: 500
-    height: mainLyt.implicitHeight + 40 + 50
+    height: minimumHeight
     minimumWidth: 500
     minimumHeight: mainLyt.implicitHeight + 40 + 50
     title: "Yxob Setup"
@@ -38,7 +38,6 @@ ApplicationWindow {
         anchors.margins: 20
         spacing: 25
         
-        // Discord Developer Portal Section
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 15
@@ -88,7 +87,7 @@ ApplicationWindow {
                     }
                     
                     Label {
-                        text: "• Enable 'Message Content Intent'"
+                        text: "• Enable 'Server Members Intent'"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
                         color: "#cccccc"
@@ -106,7 +105,6 @@ ApplicationWindow {
             }
         }
         
-        // Token Setup Section
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 15
@@ -142,7 +140,6 @@ ApplicationWindow {
                         id: tokenInput
                         Layout.fillWidth: true
                         placeholderText: "Paste your bot token here"
-                        text: setupManager.get_token() || ""
                         echoMode: TextInput.Password
                     }
                     
@@ -151,52 +148,28 @@ ApplicationWindow {
                         spacing: 10
                         
                         Button {
-                            text: setupManager.tokenValidationStatus === "Validated" ? "✓ Token is valid" : "Validate Token"
-                            enabled: setupManager.tokenValidationStatus !== "Validated" && tokenInput.text.trim() !== ""
-                            highlighted: setupManager.tokenValidationStatus !== "Validated"
+                            text:  setupManager && setupManager.tokenValidationStatus === "Validated" ? "✓ Token is valid" : "Validate Token"
+                            enabled:  setupManager && setupManager.tokenValidationStatus !== "Validated" && tokenInput.text.trim() !== ""
                             onClicked: {
                                 setupManager.validate_token(tokenInput.text.trim())
                             }
                         }
                         
-                        Label {
-                            text: setupManager.tokenValidationStatus
-                            color: setupManager.tokenValidationStatus === "Validated" ? "#4CAF50" : 
-                                   setupManager.tokenValidationStatus.includes("Error") || setupManager.tokenValidationStatus === "Invalid Token" ? "#d13438" : "#cccccc"
-                            visible: setupManager.tokenValidationStatus !== "Not Validated"
-                        }
-                    }
-                    
-                    // Invite Link Section
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-                        visible: setupManager.tokenValidationStatus === "Validated"
-                        
                         Button {
                             text: "Invite Yxob to your server"
-                            highlighted: true
+                            enabled: setupManager && setupManager.tokenValidationStatus === "Validated"
+                            highlighted: enabled
                             onClicked: {
                                 Qt.openUrlExternally(setupManager.inviteLink)
                             }
-                        }
-                        
-                        Label {
-                            text: "Click the button above to invite your bot to a Discord server"
-                            color: "#999"
-                            font.pixelSize: 11
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
                         }
                     }
                 }
             }
         }
         
-        // Finish Button
         Button {
             text: "Start Yxob"
-            highlighted: true
             Layout.alignment: Qt.AlignRight
             Layout.preferredWidth: 150
             enabled: readyToGo

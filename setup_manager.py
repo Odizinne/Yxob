@@ -66,9 +66,8 @@ class SetupManager(QObject):
                 self._client_id = data.get("id")
                 self.tokenValidationStatus = "Validated"
 
-                # Generate the invite link with voice channel permissions
-                # Permissions: Connect (0x100000), Speak (0x200000), Use Voice Activity (0x2000000)
-                permissions = 3212288  # Basic bot permissions + voice permissions
+                # Permissions: Connect (0x100000), Use Voice Activity (0x2000000)
+                permissions = 34603008  # Basic bot permissions + voice permissions
                 self._invite_link = f"https://discord.com/api/oauth2/authorize?client_id={self._client_id}&permissions={permissions}&scope=bot"
                 self.inviteLinkChanged.emit(self._invite_link)
             elif response.status_code == 401:

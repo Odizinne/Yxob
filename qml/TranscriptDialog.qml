@@ -6,14 +6,14 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: transcriptDialog
     title: "Transcript Recordings"
-    //modal: true
     width: 600
     height: 500
-    
-    //property var recorder: null
-    
+    minimumWidth: 600
+    minimumHeight: 500
+    flags: Qt.Dialog
+    modality: Qt.ApplicationModal
+        
     onVisibleChanged: {
-        //console.log("TranscriptDialog opened, recorder:", recorder)
         if (recorder && visible) {
             console.log("Refreshing recordings...")
             recorder.refreshRecordings()
@@ -25,32 +25,6 @@ ApplicationWindow {
         anchors.margins: 12
         spacing: 15
         
-        // Header with controls
-//        RowLayout {
-//            Layout.fillWidth: true
-//            spacing: 10
-//            
-//            Label {
-//                text: "Select recordings to transcribe:"
-//                font.pixelSize: 14
-//                font.bold: true
-//            }
-//            
-//            Item { Layout.fillWidth: true }
-//            
-//            Button {
-//                text: "Refresh"
-//                icon.source: "icons/refresh.png"
-//                onClicked: {
-//                    console.log("Refresh clicked, recorder:", recorder)
-//                    if (recorder) {
-//                        recorder.refreshRecordings()
-//                    }
-//                }
-//            }
-//        }
-        
-        // Selection controls
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -87,7 +61,6 @@ ApplicationWindow {
             }
         }
         
-        // Progress indicator
         RowLayout {
             Layout.fillWidth: true
             visible: recorder ? recorder.isTranscribing : false
@@ -120,7 +93,6 @@ ApplicationWindow {
             }
         }
         
-        // Recordings list
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -134,7 +106,6 @@ ApplicationWindow {
                 anchors.margins: 10
                 spacing: 0
                 
-                // Header
                 Rectangle {
                     Layout.fillWidth: true
                     height: 35
@@ -180,7 +151,6 @@ ApplicationWindow {
                     }
                 }
                 
-                // List view
                 ListView {
                     id: recordingsList
                     Layout.fillWidth: true
@@ -189,28 +159,20 @@ ApplicationWindow {
                     spacing: 2
                     clip: true
                     
-                    // Debug the model
-                    Component.onCompleted: {
-                        console.log("ListView created, model:", model)
+                    Label {
+                        anchors.centerIn: parent
+                        text: "No recordings found\n\nRecord some audio first, then return here to transcribe it."
+                        color: "#999"
+                        visible: recordingsList.count === 0 && recorder && recorder.recordingsModel
+                        horizontalAlignment: Text.AlignHCenter
+                        font.pixelSize: 14
                     }
-                    
-                    onModelChanged: {
-                        console.log("ListView model changed:", model)
-                        if (model) {
-                            console.log("Model row count:", model.rowCount())
-                        }
-                    }
-                    
+
                     delegate: Rectangle {
                         width: recordingsList.width
                         height: 50
                         color: mouseArea.containsMouse ? "#404040" : "transparent"
                         radius: 4
-                        
-                        // Debug the delegate
-                        Component.onCompleted: {
-                            console.log("Delegate created for index:", index, "name:", name)
-                        }
                         
                         MouseArea {
                             id: mouseArea
@@ -255,7 +217,6 @@ ApplicationWindow {
                                     text: {
                                         if (!name) return ""
                                         let filename = name.toString()
-                                        // Extract timestamp and user name from filename
                                         let parts = filename.replace("recording_", "").replace(".wav", "").split("_")
                                         if (parts.length >= 3) {
                                             let date = parts[0]
@@ -304,20 +265,9 @@ ApplicationWindow {
                         policy: ScrollBar.AsNeeded
                     }
                 }
-                
-                // Empty state
-                Label {
-                    anchors.centerIn: parent
-                    text: "No recordings found\n\nRecord some audio first, then return here to transcribe it."
-                    color: "#999"
-                    visible: recordingsList.count === 0 && recorder && recorder.recordingsModel
-                    horizontalAlignment: Text.AlignHCenter
-                    font.pixelSize: 14
-                }
             }
         }
         
-        // Bottom buttons
         RowLayout {
             Layout.fillWidth: true
             spacing: 15
@@ -326,7 +276,6 @@ ApplicationWindow {
                 text: "Open Recordings Folder"
                 icon.source: "icons/folder.png"
                 onClicked: {
-                    console.log("Open folder clicked, recorder:", recorder)
                     if (recorder) {
                         recorder.openRecordingsFolder()
                     } else {

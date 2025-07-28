@@ -6,7 +6,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     width: 360
-    height: 520  // Increased height to accommodate new controls
+    height: 520
     visible: true
     title: "Yxob"
     
@@ -80,11 +80,11 @@ ApplicationWindow {
         height: 30
         color: {
             if (recorder && recorder.isRecording) {
-                return "#d13438"  // Red when recording
+                return "#d13438" 
             } else if (recorder && recorder.botConnected) {
-                return "#107c10"  // Green when connected
+                return "#107c10" 
             } else {
-                return "#ff8c00"  // Orange when connecting
+                return "#ff8c00" 
             }
         }
         
@@ -129,128 +129,15 @@ ApplicationWindow {
         anchors.margins: 20
         spacing: 15
         
-        // Server and Channel selection
-        GridLayout {
-            Layout.fillWidth: true
-            rowSpacing: 10
-            columnSpacing: 10
-            columns: 2
-            //visible: recorder ? recorder.botConnected : false
-            
-            Label {
-                text: "Server"
-                font.pixelSize: 14
-                font.bold: true
-            }
-
-            ComboBox {
-                id: guildsCombo
-                Layout.fillWidth: true
-                textRole: "name"
-                model: recorder ? recorder.guildsModel : null
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                
-                // Bind currentIndex to the recorder's selectedGuildIndex
-                currentIndex: recorder ? recorder.selectedGuildIndex : -1
-                
-                onActivated: {
-                    if (recorder && currentIndex !== recorder.selectedGuildIndex) {
-                        recorder.setSelectedGuild(currentIndex)
-                    }
-                }
-                
-                // Update currentIndex when the recorder's selection changes
-                Connections {
-                    target: recorder
-                    function onGuildsUpdated() {
-                        if (recorder && recorder.selectedGuildIndex >= 0) {
-                            guildsCombo.currentIndex = recorder.selectedGuildIndex
-                        }
-                    }
-                }
-                
-                delegate: ItemDelegate {
-                    width: guildsCombo.width
-                    text: name
-                    highlighted: guildsCombo.highlightedIndex === index
-                }
-            }
-            
-            Label {
-                text: "Channel"
-                font.pixelSize: 14
-                font.bold: true
-            }
-            
-            ComboBox {
-                id: channelsCombo
-                Layout.fillWidth: true
-                textRole: "name"
-                model: recorder ? recorder.channelsModel : null
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                
-                // Bind currentIndex to the recorder's selectedChannelIndex
-                currentIndex: recorder ? recorder.selectedChannelIndex : -1
-                
-                onActivated: {
-                    if (recorder && currentIndex !== recorder.selectedChannelIndex) {
-                        recorder.setSelectedChannel(currentIndex)
-                    }
-                }
-                
-                // Update currentIndex when the recorder's selection changes
-                Connections {
-                    target: recorder
-                    function onChannelsUpdated() {
-                        if (recorder && recorder.selectedChannelIndex >= 0) {
-                            channelsCombo.currentIndex = recorder.selectedChannelIndex
-                        }
-                    }
-                }
-                
-                delegate: ItemDelegate {
-                    width: channelsCombo.width
-                    highlighted: channelsCombo.highlightedIndex === index
-                    
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 10
-                        
-                        Label {
-                            text: name
-                            Layout.fillWidth: true
-                            font.pixelSize: 14
-                        }
-                        
-                        Rectangle {
-                            Layout.preferredWidth: 25
-                            Layout.preferredHeight: 18
-                            color: memberCount > 0 ? "#4CAF50" : "#666"
-                            radius: 9
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: memberCount
-                                font.pixelSize: 10
-                                color: "white"
-                                font.bold: true
-                            }
-                        }
-                    }
-                }
-                
-                displayText: currentIndex >= 0 ? currentText + " (" + 
-                           (model && model.data ? model.data(model.index(currentIndex, 0), Qt.UserRole + 1) : "0") + 
-                           " members)" : "Select channel..."
-            }
-        }
-        
-        // Control buttons
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 10
-            
+            Button {
+                Layout.fillWidth: true
+                text: "Server selection"
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                onClicked: discordDialog.open()
+            }
             RowLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
@@ -351,6 +238,139 @@ ApplicationWindow {
                 enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
                 onClicked: {
                     transcriptDialog.show()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        anchors.centerIn: parent
+        width: 320
+        id: discordDialog
+        modal: true
+        title: "Channel selection"
+        GridLayout {
+            anchors.fill: parent
+            rowSpacing: 12
+            columnSpacing: 12
+            columns: 2
+            
+            Label {
+                text: "Server"
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            ComboBox {
+                id: guildsCombo
+                Layout.fillWidth: true
+                textRole: "name"
+                model: recorder ? recorder.guildsModel : null
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                currentIndex: recorder ? recorder.selectedGuildIndex : -1
+                
+                onActivated: {
+                    if (recorder && currentIndex !== recorder.selectedGuildIndex) {
+                        recorder.setSelectedGuild(currentIndex)
+                    }
+                }
+                
+                Connections {
+                    target: recorder
+                    function onGuildsUpdated() {
+                        if (recorder && recorder.selectedGuildIndex >= 0) {
+                            guildsCombo.currentIndex = recorder.selectedGuildIndex
+                        }
+                    }
+                }
+                
+                delegate: ItemDelegate {
+                    width: guildsCombo.width
+                    text: name
+                    highlighted: guildsCombo.highlightedIndex === index
+                }
+            }
+            
+            Label {
+                text: "Channel"
+                font.pixelSize: 14
+                font.bold: true
+            }
+            
+            ComboBox {
+                id: channelsCombo
+                Layout.fillWidth: true
+                textRole: "name"
+                model: recorder ? recorder.channelsModel : null
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                
+                currentIndex: recorder ? recorder.selectedChannelIndex : -1
+                
+                onActivated: {
+                    if (recorder && currentIndex !== recorder.selectedChannelIndex) {
+                        recorder.setSelectedChannel(currentIndex)
+                    }
+                }
+                
+                Connections {
+                    target: recorder
+                    function onChannelsUpdated() {
+                        if (recorder && recorder.selectedChannelIndex >= 0) {
+                            channelsCombo.currentIndex = recorder.selectedChannelIndex
+                        }
+                    }
+                }
+                
+                delegate: ItemDelegate {
+                    width: channelsCombo.width
+                    highlighted: channelsCombo.highlightedIndex === index
+                    
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+                        
+                        Label {
+                            text: name
+                            Layout.fillWidth: true
+                            font.pixelSize: 14
+                        }
+                        
+                        Rectangle {
+                            Layout.preferredWidth: 25
+                            Layout.preferredHeight: 18
+                            color: memberCount > 0 ? "#4CAF50" : "#666"
+                            radius: 9
+                            
+                            Label {
+                                anchors.centerIn: parent
+                                text: memberCount
+                                font.pixelSize: 10
+                                color: "white"
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+                
+                displayText: currentIndex >= 0 ? currentText + " (" + 
+                           (model && model.data ? model.data(model.index(currentIndex, 0), Qt.UserRole + 1) : "0") + 
+                           " members)" : "Select channel..."
+            }
+
+            Item {}
+            Button {
+                Layout.fillWidth: true
+                text: recorder && recorder.isJoined ? "Leave Channel" : "Join Channel"
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                onClicked: {
+                    if (recorder) {
+                        if (recorder.isJoined) {
+                            recorder.leaveChannel()
+                        } else {
+                            recorder.joinChannel()
+                        }
+                    }
                 }
             }
         }
