@@ -6,7 +6,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     width: 360
-    height: 480
+    height: 520  // Increased height to accommodate new controls
     visible: true
     title: "Yxob"
     
@@ -33,6 +33,10 @@ ApplicationWindow {
                                String(seconds).padStart(2, '0')
             }
         }
+    }
+    
+    TranscriptDialog {
+        id: transcriptDialog
     }
     
     header: Rectangle {
@@ -88,7 +92,6 @@ ApplicationWindow {
             anchors.centerIn: parent
             spacing: 10
             
-            // Recording indicator dot (only when recording)
             Rectangle {
                 width: 10
                 height: 10
@@ -124,7 +127,124 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
-        spacing: 20
+        spacing: 15
+        
+        // Server and Channel selection
+        GridLayout {
+            Layout.fillWidth: true
+            rowSpacing: 10
+            columnSpacing: 10
+            columns: 2
+            //visible: recorder ? recorder.botConnected : false
+            
+            Label {
+                text: "Server"
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            ComboBox {
+                id: guildsCombo
+                Layout.fillWidth: true
+                textRole: "name"
+                model: recorder ? recorder.guildsModel : null
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                
+                // Bind currentIndex to the recorder's selectedGuildIndex
+                currentIndex: recorder ? recorder.selectedGuildIndex : -1
+                
+                onActivated: {
+                    if (recorder && currentIndex !== recorder.selectedGuildIndex) {
+                        recorder.setSelectedGuild(currentIndex)
+                    }
+                }
+                
+                // Update currentIndex when the recorder's selection changes
+                Connections {
+                    target: recorder
+                    function onGuildsUpdated() {
+                        if (recorder && recorder.selectedGuildIndex >= 0) {
+                            guildsCombo.currentIndex = recorder.selectedGuildIndex
+                        }
+                    }
+                }
+                
+                delegate: ItemDelegate {
+                    width: guildsCombo.width
+                    text: name
+                    highlighted: guildsCombo.highlightedIndex === index
+                }
+            }
+            
+            Label {
+                text: "Channel"
+                font.pixelSize: 14
+                font.bold: true
+            }
+            
+            ComboBox {
+                id: channelsCombo
+                Layout.fillWidth: true
+                textRole: "name"
+                model: recorder ? recorder.channelsModel : null
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                
+                // Bind currentIndex to the recorder's selectedChannelIndex
+                currentIndex: recorder ? recorder.selectedChannelIndex : -1
+                
+                onActivated: {
+                    if (recorder && currentIndex !== recorder.selectedChannelIndex) {
+                        recorder.setSelectedChannel(currentIndex)
+                    }
+                }
+                
+                // Update currentIndex when the recorder's selection changes
+                Connections {
+                    target: recorder
+                    function onChannelsUpdated() {
+                        if (recorder && recorder.selectedChannelIndex >= 0) {
+                            channelsCombo.currentIndex = recorder.selectedChannelIndex
+                        }
+                    }
+                }
+                
+                delegate: ItemDelegate {
+                    width: channelsCombo.width
+                    highlighted: channelsCombo.highlightedIndex === index
+                    
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+                        
+                        Label {
+                            text: name
+                            Layout.fillWidth: true
+                            font.pixelSize: 14
+                        }
+                        
+                        Rectangle {
+                            Layout.preferredWidth: 25
+                            Layout.preferredHeight: 18
+                            color: memberCount > 0 ? "#4CAF50" : "#666"
+                            radius: 9
+                            
+                            Label {
+                                anchors.centerIn: parent
+                                text: memberCount
+                                font.pixelSize: 10
+                                color: "white"
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+                
+                displayText: currentIndex >= 0 ? currentText + " (" + 
+                           (model && model.data ? model.data(model.index(currentIndex, 0), Qt.UserRole + 1) : "0") + 
+                           " members)" : "Select channel..."
+            }
+        }
         
         // Control buttons
         ColumnLayout {
@@ -167,8 +287,6 @@ ApplicationWindow {
                 }
             }
         }
-
-        // Removed the separate recording indicator since it's now in the footer
         
         Rectangle {
             Layout.fillWidth: true
@@ -212,7 +330,6 @@ ApplicationWindow {
                     }
                 }
                 
-                // Empty state
                 Label {
                     anchors.centerIn: parent
                     text: "No users being recorded"
@@ -222,14 +339,18 @@ ApplicationWindow {
             }
         }
 
-        Button {
+        ColumnLayout {
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignHCenter
-            text: "Open Recordings Folder"
-            icon.source: "icons/folder.png"
-            onClicked: {
-                if (recorder) {
-                    recorder.openRecordingsFolder()
+            spacing: 10
+            
+            Button {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                text: "Transcript Recordings"
+                icon.source: "icons/transcript.png"
+                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                onClicked: {
+                    transcriptDialog.show()
                 }
             }
         }
