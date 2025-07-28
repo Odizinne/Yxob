@@ -14,6 +14,7 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property, QAbstractLis
 from PySide6.QtQml import qmlRegisterType, QmlElement
 from PySide6.QtGui import QGuiApplication, QDesktopServices
 from PySide6.QtQml import QQmlApplicationEngine
+from setup_manager import SetupManager
 
 QML_IMPORT_NAME = "DiscordRecorder"
 QML_IMPORT_MAJOR_VERSION = 1
@@ -704,7 +705,13 @@ class DiscordRecorder(QObject):
             print("Bot disconnected")
             
         try:
-            await bot.start('MTM5OTA5NjE0NDY3MTI4MTE3Mg.GONdOk.48DGFJ1sEAYOSISeMBSu2Of79bZLjJw0xe9Szs')
+            setup_manager = SetupManager()
+            token = setup_manager.get_token()
+            if not token:
+                self._set_status("No bot token found - please run setup")
+                return
+                
+            await bot.start(token)
         except Exception as e:
             self._set_status(f"Bot error: {str(e)}")
             self._set_bot_connected(False)
@@ -823,10 +830,15 @@ def main():
     qmlRegisterType(RecordingsListModel, "DiscordRecorder", 1, 0, "RecordingsListModel")
     qmlRegisterType(GuildsListModel, "DiscordRecorder", 1, 0, "GuildsListModel")
     qmlRegisterType(ChannelsListModel, "DiscordRecorder", 1, 0, "ChannelsListModel")
+    qmlRegisterType(SetupManager, "DiscordRecorder", 1, 0, "SetupManager")
     
     engine = QQmlApplicationEngine()
     
-    # Create recorder instance and register it globally
+    # Create setup manager instance
+    setup_manager = SetupManager()
+    engine.rootContext().setContextProperty("setupManager", setup_manager)
+    
+    # Create recorder instance
     recorder = DiscordRecorder()
     engine.rootContext().setContextProperty("recorder", recorder)
     
@@ -837,13 +849,31 @@ def main():
     
     app.aboutToQuit.connect(cleanup)
     
-    engine.load("qml/Main.qml")
+    # Check if setup is complete
+    if not setup_manager.is_setup_complete():
+        print("Setup required, showing setup window...")
+        engine.load("qml/SetupWindow.qml")
+        
+        # Handle setup completion
+        def on_setup_completed(token):
+            print(f"Setup completed with token: {token[:10]}...")
+            # Load main window
+            engine.clearComponentCache()
+            engine.load("qml/Main.qml")
+            # Start the bot with the new token
+            recorder.startBot()
+        
+        setup_manager.setupCompleted.connect(on_setup_completed)
+        
+    else:
+        print("Setup already complete, loading main window...")
+        # Load main window directly
+        engine.load("qml/Main.qml")
+        # Start the bot
+        recorder.startBot()
     
     if not engine.rootObjects():
         return -1
-        
-    # Start the bot
-    recorder.startBot()
     
     return app.exec()
 
