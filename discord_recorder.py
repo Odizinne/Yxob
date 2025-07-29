@@ -374,17 +374,34 @@ class DiscordRecorder(QObject):
 
     def cleanup(self):
         """Clean up resources when app is closing"""
+        print("Starting application cleanup...")
+
+        # Stop recording first if active
+        if self._is_recording:
+            print("Stopping active recording...")
+            self._set_recording(False)
+            if self._current_sink:
+                try:
+                    self._current_sink.cleanup()
+                except Exception as e:
+                    print(f"Error during sink cleanup: {e}")
+                self._current_sink = None
+
+        # Stop transcription worker
         if self._transcription_worker and self._transcription_worker.isRunning():
             print("Stopping transcription worker...")
             self._transcription_worker.terminate()
             self._transcription_worker.wait(3000)
             self._transcription_worker.deleteLater()
 
+        # Stop Discord bot worker
         if self._worker:
             print("Stopping Discord bot worker...")
             self._set_bot_connected(False)
             self._worker.stop()
             self._worker = None
+
+        print("Application cleanup completed")
 
     # Voice channel management
     @Slot()
@@ -534,32 +551,45 @@ class DiscordRecorder(QObject):
 
     async def _stop_recording_async(self):
         try:
+            print("Stopping recording...")
+
             # Always set recording to False first to ensure UI updates
             self._set_recording(False)
-            
+
             if not self._voice_client:
                 self._set_status("Not connected to any voice channel")
                 return
-    
+
             if self._current_sink:
-                self._voice_client.stop_listening()
-                recorded_users = self._current_sink.cleanup()
-                self._current_sink = None
-    
+                try:
+                    self._voice_client.stop_listening()
+                    print("Stopped listening to voice channel")
+                except Exception as e:
+                    print(f"Error stopping listening: {e}")
+
+                try:
+                    recorded_users = self._current_sink.cleanup()
+                    print(f"Cleaned up recordings for {len(recorded_users)} users")
+                except Exception as e:
+                    print(f"Error during sink cleanup: {e}")
+                finally:
+                    self._current_sink = None
+
             channel_name = "Unknown"
             guild_name = "Unknown"
-    
+
             if self._voice_client.channel:
                 channel_name = self._voice_client.channel.name
                 guild_name = self._voice_client.channel.guild.name
-    
+
             self._set_status(
                 f"Recording stopped - still in {channel_name} ({guild_name})"
             )
-    
+
             self.clearUserList.emit()
             self.refreshRecordings()
-    
+            print("Recording stopped successfully")
+
         except Exception as e:
             # Ensure recording state is set to False even on error
             self._set_recording(False)
@@ -585,22 +615,41 @@ class DiscordRecorder(QObject):
 
         @bot.event
         async def on_voice_state_update(member, before, after):
-            # Only handle events if we're currently recording
-            if not self._is_recording or not self._current_sink:
-                return
-            
-            # Check if user left the voice channel we're recording in
-            if (before.channel and after.channel != before.channel and 
-                self._voice_client and before.channel == self._voice_client.channel):
+            try:
+                # Only handle events if we're currently recording
+                if not self._is_recording or not self._current_sink:
+                    return
                 
                 user_id = str(member.id)
-                if user_id in self._current_sink.files:
-                    print(f"User {member.display_name} left channel - finalizing their recording")
-                    # Close their WAV file
-                    self._current_sink.finalize_user_recording(user_id)
+                
+                # Check if user left the voice channel we're recording in
+                if (before.channel and after.channel != before.channel and 
+                    self._voice_client and before.channel == self._voice_client.channel):
                     
-                    # Remove from UI
-                    self.userLeft.emit(user_id)
+                    if user_id in self._current_sink.files:
+                        print(f"User {member.display_name} left channel - finalizing their recording")
+                        # Close their WAV file safely
+                        success = self._current_sink.finalize_user_recording(user_id)
+                        if success:
+                            # Remove from UI
+                            self.userLeft.emit(user_id)
+                            print(f"Successfully finalized recording for {member.display_name}")
+                        else:
+                            print(f"Failed to finalize recording for {member.display_name}")
+                
+                # Handle user joining
+                elif (after.channel and before.channel != after.channel and 
+                      self._voice_client and after.channel == self._voice_client.channel):
+                    
+                    # Check if user should be excluded
+                    if not self._current_sink.is_user_excluded(member.display_name):
+                        print(f"User {member.display_name} joined the recording channel")
+                        # The actual recording start will be handled in the write() method
+                    else:
+                        print(f"User {member.display_name} joined but is excluded from recording")
+                        
+            except Exception as e:
+                print(f"Error in voice state update handler: {e}")
 
         @bot.event
         async def on_disconnect():
