@@ -132,16 +132,29 @@ ApplicationWindow {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 10
-            Button {
+            RowLayout {
                 Layout.fillWidth: true
-                text: "Server selection"
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                onClicked: discordDialog.open()
+                spacing: 10
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "Server selection"
+                    enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                    onClicked: discordDialog.open()
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "User Exclusions"
+                    enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                    onClicked: userExclusionDialog.show()
+                }
             }
+
             RowLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 20
+                spacing: 10
                 
                 Button {
                     Layout.fillWidth: true
@@ -241,6 +254,10 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    UserExclusionDialog {
+        id: userExclusionDialog
     }
 
     Dialog {

@@ -6,12 +6,13 @@ from PySide6.QtCore import QStandardPaths
 
 
 class SimpleRecordingSink(voice_recv.AudioSink):
-    def __init__(self, callback=None):
+    def __init__(self, callback=None, excluded_users=None):
         super().__init__()
         self.files = {}
         self.sessionid = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.callback = callback
         self.user_session_count = {}
+        self.excluded_users = excluded_users or []
         
         # Base recordings directory
         self.base_recordings_dir = QStandardPaths.writableLocation(
@@ -24,12 +25,30 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         os.makedirs(self.recordings_dir, exist_ok=True)
         
         print(f"Recordings will be saved to: {self.recordings_dir}")
+        print(f"Excluded users: {self.excluded_users}")
+
+    def update_excluded_users(self, excluded_users):
+        """Update the excluded users list"""
+        self.excluded_users = excluded_users or []
+        print(f"Updated excluded users: {self.excluded_users}")
+
+    def is_user_excluded(self, user_display_name):
+        """Check if a user should be excluded from recording"""
+        if not user_display_name or not self.excluded_users:
+            return False
+        
+        user_name_lower = user_display_name.lower()
+        return user_name_lower in self.excluded_users
 
     def wants_opus(self):
         return False
 
     def write(self, user, data):
         if user is None:
+            return
+
+        # Check if user is excluded
+        if self.is_user_excluded(user.display_name):
             return
 
         user_id = str(user.id)

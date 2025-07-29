@@ -2,7 +2,7 @@ import os
 import platform
 import asyncio
 import requests
-from PySide6.QtCore import QObject, Signal, Slot, Property, QStandardPaths
+from PySide6.QtCore import QObject, Signal, Slot, Property, QStandardPaths, QSettings
 
 class SetupManager(QObject):
     # Define the signals
@@ -110,3 +110,27 @@ class SetupManager(QObject):
             if token == "" or token.startswith("REPLACE_THIS"):
                 return ""
             return token
+
+    # User exclusion methods
+    @Slot(result=str)
+    def get_excluded_users(self):
+        """Get the excluded users list"""
+        settings = QSettings()
+        return settings.value("excludedUsers", "")
+
+    @Slot(str)
+    def set_excluded_users(self, excluded_users):
+        """Set the excluded users list"""
+        settings = QSettings()
+        settings.setValue("excludedUsers", excluded_users)
+        settings.sync()
+
+    def get_excluded_users_list(self):
+        """Get excluded users as a list"""
+        excluded_users_str = self.get_excluded_users()
+        if not excluded_users_str.strip():
+            return []
+        
+        # Split by comma and clean up whitespace
+        excluded_users = [user.strip().lower() for user in excluded_users_str.split(",")]
+        return [user for user in excluded_users if user]  # Remove empty strings

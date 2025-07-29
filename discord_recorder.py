@@ -64,6 +64,7 @@ class DiscordRecorder(QObject):
         self._selected_guild_index = -1
         self._selected_channel_index = -1
         self._is_joined = False
+        self._excluded_users = []
 
         self._recordings_dir = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.AppDataLocation
@@ -76,6 +77,37 @@ class DiscordRecorder(QObject):
         self.clearUserList.connect(self._user_model.clear_users)
 
         self._recordings_model.refresh_recordings(self._recordings_dir)
+        
+        # Load excluded users from settings
+        self._load_excluded_users()
+
+    def _load_excluded_users(self):
+        """Load excluded users from settings"""
+        setup_manager = SetupManager()
+        excluded_users_list = setup_manager.get_excluded_users_list()
+        self._excluded_users = excluded_users_list
+        print(f"Loaded excluded users: {self._excluded_users}")
+
+    @Slot(str)
+    def updateExcludedUsers(self, excluded_users_str):
+        """Update the excluded users list from QML"""
+        setup_manager = SetupManager()
+        setup_manager.set_excluded_users(excluded_users_str)
+        self._load_excluded_users()
+        
+        # If we're currently recording, update the sink
+        if self._current_sink:
+            self._current_sink.update_excluded_users(self._excluded_users)
+        
+        print(f"Updated excluded users from QML: {self._excluded_users}")
+
+    def is_user_excluded(self, user_display_name):
+        """Check if a user should be excluded from recording"""
+        if not user_display_name:
+            return False
+        
+        user_name_lower = user_display_name.lower()
+        return user_name_lower in self._excluded_users
 
     # Properties
     @Property(str, notify=statusChanged)
@@ -447,7 +479,8 @@ class DiscordRecorder(QObject):
                 if not self._voice_client:
                     return
 
-            self._current_sink = SimpleRecordingSink(callback=self)
+            # Pass excluded users to the sink
+            self._current_sink = SimpleRecordingSink(callback=self, excluded_users=self._excluded_users)
             self._voice_client.listen(self._current_sink)
 
             self._set_recording(True)
@@ -460,6 +493,9 @@ class DiscordRecorder(QObject):
 
             self._set_status(f"Recording in {channel_name} ({guild_name})")
             print("Recording started successfully")
+            
+            if self._excluded_users:
+                print(f"Excluded users: {self._excluded_users}")
 
         except Exception as e:
             self._set_status(f"Error starting recording: {str(e)}")
