@@ -534,33 +534,37 @@ class DiscordRecorder(QObject):
 
     async def _stop_recording_async(self):
         try:
+            # Always set recording to False first to ensure UI updates
+            self._set_recording(False)
+            
             if not self._voice_client:
                 self._set_status("Not connected to any voice channel")
                 return
-
+    
             if self._current_sink:
                 self._voice_client.stop_listening()
                 recorded_users = self._current_sink.cleanup()
                 self._current_sink = None
-
-            self._set_recording(False)
-
+    
             channel_name = "Unknown"
             guild_name = "Unknown"
-
+    
             if self._voice_client.channel:
                 channel_name = self._voice_client.channel.name
                 guild_name = self._voice_client.channel.guild.name
-
+    
             self._set_status(
                 f"Recording stopped - still in {channel_name} ({guild_name})"
             )
-
+    
             self.clearUserList.emit()
             self.refreshRecordings()
-
+    
         except Exception as e:
+            # Ensure recording state is set to False even on error
+            self._set_recording(False)
             self._set_status(f"Error stopping recording: {str(e)}")
+            print(f"Stop recording error: {e}")
 
     async def _run_bot(self):
         @bot.event
