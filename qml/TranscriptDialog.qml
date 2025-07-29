@@ -293,9 +293,20 @@ ApplicationWindow {
                     }
                 }
             }
-            
+                        
+            Button {
+                text: "Launch Summarizer"
+                icon.source: "icons/folder.png"
+                enabled: recorder ? !recorder.isTranscribing : false
+                onClicked: {
+                    if (recorder) {
+                        recorder.launchSummarizer()
+                    }
+                }
+            }
+
             Item { Layout.fillWidth: true }
-            
+
             Button {
                 text: "Start Transcription"
                 icon.source: "icons/transcript.png"

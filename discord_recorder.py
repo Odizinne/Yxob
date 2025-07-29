@@ -13,6 +13,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtQml import QmlElement
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QProcess
 
 from audio_sink import SimpleRecordingSink
 from workers import AsyncWorker, TranscriptionWorker
@@ -87,6 +88,29 @@ class DiscordRecorder(QObject):
         excluded_users_list = setup_manager.get_excluded_users_list()
         self._excluded_users = excluded_users_list
         print(f"Loaded excluded users: {self._excluded_users}")
+
+    @Slot()
+    def launchSummarizer(self):
+        """Launch the DNDSummarizer executable"""
+        try:
+            import os
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            summarizer_path = os.path.join(script_dir, "summarizer", "bin", "DNDSummarizer.exe")
+
+            if not os.path.exists(summarizer_path):
+                print(f"Summarizer not found at: {summarizer_path}")
+                return
+
+            process = QProcess()
+            success = process.startDetached(summarizer_path)
+
+            if success:
+                print(f"Successfully launched summarizer: {summarizer_path}")
+            else:
+                print(f"Failed to launch summarizer: {summarizer_path}")
+
+        except Exception as e:
+            print(f"Error launching summarizer: {e}")
 
     @Slot(str)
     def updateExcludedUsers(self, excluded_users_str):
