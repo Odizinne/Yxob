@@ -672,16 +672,11 @@ class DiscordRecorder(QObject):
                 if (before.channel and after.channel != before.channel and 
                     self._voice_client and before.channel == self._voice_client.channel):
                     
+                    # Don't close the recording file, just update the UI state
                     if user_id in self._current_sink.files:
-                        print(f"User {member.display_name} left channel - finalizing their recording")
-                        # Close their WAV file safely
-                        success = self._current_sink.finalize_user_recording(user_id)
-                        if success:
-                            # Remove from UI
-                            self.userLeft.emit(user_id)
-                            print(f"Successfully finalized recording for {member.display_name}")
-                        else:
-                            print(f"Failed to finalize recording for {member.display_name}")
+                        print(f"User {member.display_name} left channel - keeping recording open")
+                        self._current_sink.user_left_channel(user_id)
+                        # Don't emit userLeft - keep them in the UI but mark as not speaking
                 
                 # Handle user joining
                 elif (after.channel and before.channel != after.channel and 
@@ -690,7 +685,11 @@ class DiscordRecorder(QObject):
                     # Check if user should be excluded
                     if not self._current_sink.is_user_excluded(member.display_name):
                         print(f"User {member.display_name} joined the recording channel")
-                        # The actual recording start will be handled in the write() method
+                        self._current_sink.user_joined_channel(user_id, member.display_name)
+                        
+                        # Only emit userDetected if this is a truly new user (not in seen_users)
+                        if user_id not in self._current_sink.seen_users:
+                            self.userDetected.emit(member.display_name, user_id)
                     else:
                         print(f"User {member.display_name} joined but is excluded from recording")
                         

@@ -19,7 +19,10 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         
         # Speaking detection - simplified
         self.user_speaking_states = {}
-        self.speaking_threshold = 50  # Very low threshold just to detect any audio vs silence
+        self.speaking_threshold = 50
+        
+        # Track users who have been seen (for UI purposes)
+        self.seen_users = {}  # user_id -> user info
         
         # Base recordings directory
         self.base_recordings_dir = QStandardPaths.writableLocation(
@@ -33,6 +36,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         
         print(f"Recordings will be saved to: {self.recordings_dir}")
         print(f"Excluded users: {self.excluded_users}")
+        print("Continuous recording mode - files will only close when recording is manually stopped")
 
     def sanitize_filename(self, filename):
         """
@@ -144,13 +148,24 @@ class SimpleRecordingSink(voice_recv.AudioSink):
             # Always update speaking state, even for new users
             self.update_speaking_state(user_id, user.display_name, audio_level)
 
+        # Track this user as seen
+        if user_id not in self.seen_users:
+            self.seen_users[user_id] = {
+                'name': user.display_name,
+                'id': user_id
+            }
+
+        # Create recording file if it doesn't exist yet
         if user_id not in self.files:
+            # For continuous recording, we don't increment session count on reconnection
+            # Only increment if this is truly a new recording session
             session_count = self.user_session_count.get(user_id, 0) + 1
             self.user_session_count[user_id] = session_count
 
             # Sanitize the username for filename
             safe_username = self.sanitize_filename(user.display_name)
 
+            # Only add session suffix if this is actually a new session (not just a reconnection)
             session_suffix = f"_session{session_count}" if session_count > 1 else ""
             filename = f"recording_{self.sessionid}_{safe_username}{session_suffix}.wav"
 
@@ -164,7 +179,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
                 wav_file.setframerate(48000)
                 self.files[user_id] = wav_file
 
-                print(f"User {user.display_name} ({'rejoined' if session_count > 1 else 'joined'}) - starting new recording: {filename}")
+                print(f"User {user.display_name} - starting continuous recording: {filename}")
 
                 if self.callback:
                     self.callback.userDetected.emit(user.display_name, user_id)
@@ -175,40 +190,41 @@ class SimpleRecordingSink(voice_recv.AudioSink):
                 print(f"Sanitized username: {safe_username}")
                 return
 
-        # Write audio data
+        # Write audio data (this continues even if user temporarily disconnects)
         try:
             if user_id in self.files and hasattr(data, "pcm") and data.pcm:
                 self.files[user_id].writeframes(data.pcm)
         except Exception as e:
             print(f"Error writing audio data for user {user.display_name}: {e}")
 
-    def finalize_user_recording(self, user_id):
-        """Safely close a specific user's recording"""
-        if user_id in self.files:
-            print(f"Finalizing recording for user ID: {user_id}")
-            try:
-                self.files[user_id].close()
-                print(f"Successfully closed recording for user ID: {user_id}")
-            except Exception as e:
-                print(f"Error closing recording for user ID {user_id}: {e}")
-            finally:
-                # Always remove from files dict even if close failed
-                del self.files[user_id]
-                
-            # Clean up speaking state and emit stopped speaking
-            if user_id in self.user_speaking_states:
-                del self.user_speaking_states[user_id]
-                
-            # Always emit stopped speaking when user leaves
-            if self.callback:
-                self.callback.userStoppedSpeaking.emit(user_id)
-                
-            return True
-        return False
+    def user_left_channel(self, user_id):
+        """Called when user leaves channel - but we DON'T close the recording"""
+        print(f"User {user_id} left channel, but keeping recording open for continuous recording")
+        
+        # Just update speaking state to false (they can't speak if they're not in channel)
+        if user_id in self.user_speaking_states:
+            self.user_speaking_states[user_id] = False
+            
+        # Emit stopped speaking when user leaves
+        if self.callback:
+            self.callback.userStoppedSpeaking.emit(user_id)
+
+    def user_joined_channel(self, user_id, user_display_name):
+        """Called when user joins channel - update UI but recording continues"""
+        print(f"User {user_display_name} joined channel, continuing existing recording")
+        
+        # Update seen users info
+        self.seen_users[user_id] = {
+            'name': user_display_name,
+            'id': user_id
+        }
+        
+        # If they already have a recording file, we just continue using it
+        # No need to create a new file or emit userDetected again
 
     def cleanup(self):
-        """Safely cleanup all recordings"""
-        print(f"Cleaning up {len(self.files)} open recordings...")
+        """Safely cleanup all recordings - ONLY called when manually stopping recording"""
+        print(f"Manually stopping recording - closing {len(self.files)} continuous recordings...")
         user_ids = list(self.files.keys())
         
         # Emit stopped speaking for all users
@@ -220,7 +236,8 @@ class SimpleRecordingSink(voice_recv.AudioSink):
             try:
                 if user_id in self.files:
                     self.files[user_id].close()
-                    print(f"Successfully closed recording for user ID: {user_id}")
+                    user_name = self.seen_users.get(user_id, {}).get('name', user_id)
+                    print(f"Successfully closed continuous recording for {user_name}")
             except Exception as e:
                 print(f"Error closing recording for user ID {user_id}: {e}")
         
@@ -228,8 +245,9 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         self.files.clear()
         self.user_session_count.clear()
         self.user_speaking_states.clear()
+        self.seen_users.clear()
         
-        print("Cleanup completed")
+        print("Continuous recording cleanup completed")
         return user_ids
 
     def get_active_users(self):
