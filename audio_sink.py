@@ -1,6 +1,7 @@
 import os
 import wave
 import re
+import uuid
 from datetime import datetime
 from discord.ext import voice_recv
 from PySide6.QtCore import QStandardPaths
@@ -10,7 +11,10 @@ class SimpleRecordingSink(voice_recv.AudioSink):
     def __init__(self, callback=None, excluded_users=None):
         super().__init__()
         self.files = {}
-        self.sessionid = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Use timestamp + short UUID for guaranteed uniqueness
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        self.sessionid = f"{timestamp}_{unique_id}"
         self.callback = callback
         self.user_session_count = {}
         self.excluded_users = excluded_users or []
