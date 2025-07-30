@@ -187,7 +187,7 @@ class RecordingsListModel(QAbstractListModel):
         """Scan all date folders for recordings"""
         self.beginResetModel()
         self._recordings.clear()
-
+    
         # Scan for date folders (YYYY-MM-DD format)
         date_folders = []
         if os.path.exists(base_recordings_dir):
@@ -200,10 +200,10 @@ class RecordingsListModel(QAbstractListModel):
         root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
         if root_wav_files:
             date_folders.append("")  # Empty string represents root folder
-
+    
         # Sort date folders (newest first)
         date_folders.sort(reverse=True)
-
+    
         for date_folder in date_folders:
             if date_folder == "":
                 # Root folder
@@ -215,18 +215,18 @@ class RecordingsListModel(QAbstractListModel):
                 folder_path = os.path.join(base_recordings_dir, date_folder)
                 transcripts_dir = os.path.join(folder_path, "transcripts")
                 display_folder = date_folder
-
+    
             wav_pattern = os.path.join(folder_path, "*.wav")
             wav_files = glob.glob(wav_pattern)
-
+    
             for wav_file in sorted(wav_files):
                 file_size = os.path.getsize(wav_file)
                 size_str = self._format_file_size(file_size)
-
+    
                 base_name = os.path.splitext(os.path.basename(wav_file))[0]
                 transcript_path = os.path.join(transcripts_dir, f"{base_name}.txt")
                 has_transcript = os.path.exists(transcript_path)
-
+    
                 self._recordings.append(
                     {
                         "name": os.path.basename(wav_file),
@@ -237,7 +237,7 @@ class RecordingsListModel(QAbstractListModel):
                         "dateFolder": display_folder,
                     }
                 )
-
+    
         self.endResetModel()
         print(f"Refreshed recordings list: {len(self._recordings)} files found across {len(date_folders)} folders")
 
@@ -314,7 +314,7 @@ class UserListModel(QAbstractListModel):
     def add_user_with_speaking_state(self, name, user_id, speaking=False):
         """Add user with initial speaking state"""
         print(f"Adding user to model: {name} (ID: {user_id}, Speaking: {speaking})")
-    
+
         for user in self._users:
             if user["id"] == user_id:
                 print(f"User {name} already exists in model, updating speaking state")
@@ -326,13 +326,13 @@ class UserListModel(QAbstractListModel):
                         self.dataChanged.emit(model_index, model_index, [Qt.UserRole + 1])
                         break
                 return
-    
+
         self.beginInsertRows(QModelIndex(), len(self._users), len(self._users))
         self._users.append({"name": name, "id": user_id, "speaking": speaking})
         self.endInsertRows()
-    
+
         print(f"User {name} added to model with speaking={speaking}. Total users: {len(self._users)}")
-    
+
     @Slot(str, str)
     def add_user(self, name, user_id):
         """Add user with default non-speaking state"""

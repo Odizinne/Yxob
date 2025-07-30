@@ -648,17 +648,41 @@ class DiscordRecorder(QObject):
             self._set_status(f"Bot connected as {bot.user}")
             self._set_bot_connected(True)
             print(f"Bot is ready. Connected to {len(bot.guilds)} guilds")
-
+    
             self._guilds_model.clear_guilds()
             for guild in bot.guilds:
                 self._guilds_model.add_guild(guild.name, str(guild.id))
-
+    
             self.guildsUpdated.emit()
-
+    
             if bot.guilds:
                 self._selected_guild_index = 0
                 await self._update_channels_for_guild(0)
-
+    
+        @bot.event
+        async def on_resumed():
+            """Called when the bot resumes connection after a disconnection"""
+            self._set_status(f"Bot reconnected as {bot.user}")
+            self._set_bot_connected(True)
+            print("Bot connection resumed after disconnection")
+            
+            # Refresh guild list in case anything changed
+            self._guilds_model.clear_guilds()
+            for guild in bot.guilds:
+                self._guilds_model.add_guild(guild.name, str(guild.id))
+    
+            self.guildsUpdated.emit()
+    
+            # Refresh channels for current guild
+            if self._selected_guild_index >= 0 and self._selected_guild_index < len(bot.guilds):
+                await self._update_channels_for_guild(self._selected_guild_index)
+    
+        @bot.event
+        async def on_disconnect():
+            self._set_bot_connected(False)
+            print("Bot disconnected")
+            # Don't clear models here - keep them for when we reconnect
+    
         @bot.event
         async def on_voice_state_update(member, before, after):
             try:
@@ -695,23 +719,14 @@ class DiscordRecorder(QObject):
                         
             except Exception as e:
                 print(f"Error in voice state update handler: {e}")
-
-        @bot.event
-        async def on_disconnect():
-            self._set_bot_connected(False)
-            self._guilds_model.clear_guilds()
-            self._channels_model.clear_channels()
-            self.guildsUpdated.emit()
-            self.channelsUpdated.emit()
-            print("Bot disconnected")
-
+    
         try:
             setup_manager = SetupManager()
             token = setup_manager.get_token()
             if not token:
                 self._set_status("No bot token found - please run setup")
                 return
-
+    
             await bot.start(token)
         except Exception as e:
             self._set_status(f"Bot error: {str(e)}")

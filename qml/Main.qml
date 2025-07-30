@@ -137,15 +137,16 @@ ApplicationWindow {
                 spacing: 10
 
                 Button {
-                    Layout.fillWidth: true
                     text: "Server selection"
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: implicitWidth - 2
                     enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
                     onClicked: discordDialog.open()
                 }
 
                 Button {
-                    Layout.fillWidth: true
                     text: "User Exclusions"
+                    Layout.fillWidth: true
                     enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
                     onClicked: userExclusionDialog.show()
                 }
@@ -157,6 +158,7 @@ ApplicationWindow {
                 spacing: 10
                 
                 Button {
+                    id: startBtn
                     Layout.fillWidth: true
                     text: "Start Recording"
                     icon.source: "icons/record.png"
