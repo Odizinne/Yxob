@@ -49,16 +49,16 @@ class TranscriptionWorker(QThread):
         try:
             self.progress.emit("Loading Whisper model...")
             model = whisper.load_model("large")
-
+    
             total_files = len(self.files_to_transcribe)
-
+    
             for i, wav_file in enumerate(self.files_to_transcribe, 1):
                 self.progress.emit(
                     f"Transcribing {os.path.basename(wav_file)} ({i}/{total_files})..."
                 )
-
+    
                 result = model.transcribe(wav_file)
-
+    
                 # Determine the correct transcripts directory based on the file location
                 file_dir = os.path.dirname(wav_file)
                 if file_dir == self.base_recordings_dir:
@@ -69,35 +69,22 @@ class TranscriptionWorker(QThread):
                     transcripts_dir = os.path.join(file_dir, "transcripts")
                 
                 os.makedirs(transcripts_dir, exist_ok=True)
-
+    
                 base_name = os.path.splitext(os.path.basename(wav_file))[0]
                 transcript_file = os.path.join(transcripts_dir, f"{base_name}.txt")
-
+    
                 with open(transcript_file, "w", encoding="utf-8") as f:
                     f.write(f"Transcript for: {os.path.basename(wav_file)}\n")
                     f.write("=" * 50 + "\n\n")
-
+    
                     for segment in result["segments"]:
-                        start_time = self._format_timestamp(segment["start"])
-                        end_time = self._format_timestamp(segment["end"])
                         text = segment["text"].strip()
-
-                        f.write(f"[{start_time} -> {end_time}] {text}\n")
-
+                        f.write(f"{text}\n")
+    
                 print(f"Transcript saved: {transcript_file}")
-
+    
             self.progress.emit(f"Completed transcription of {total_files} files")
             self.finished.emit()
-
+    
         except Exception as e:
             self.error.emit(f"Transcription error: {str(e)}")
-
-    def _format_timestamp(self, seconds):
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = seconds % 60
-
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
-        else:
-            return f"{minutes:02d}:{secs:06.3f}"
