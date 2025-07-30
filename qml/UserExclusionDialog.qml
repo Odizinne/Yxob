@@ -8,9 +8,9 @@ ApplicationWindow {
     id: exclusionDialog
     title: "User Exclusion List"
     width: 500
-    height: 400
+    height: minimumHeight
     minimumWidth: 400
-    minimumHeight: 300
+    minimumHeight: mainLyt.implicitHeight + 40
     flags: Qt.Dialog
     modality: Qt.ApplicationModal
     
@@ -22,6 +22,7 @@ ApplicationWindow {
     property string currentExcludedUsers: settings.excludedUsers
     
     ColumnLayout {
+        id: mainLyt
         anchors.fill: parent
         anchors.margins: 20
         spacing: 15
@@ -54,35 +55,18 @@ ApplicationWindow {
                 font.italic: true
             }
         }
-        
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            color: "#2b2b2b"
-            radius: 8
-            border.color: "#444"
-            border.width: 1
-            
-            ScrollView {
-                anchors.fill: parent
-                anchors.margins: 10
                 
-                TextArea {
-                    id: excludedUsersInput
-                    text: currentExcludedUsers
-                    placeholderText: "Enter usernames separated by commas..."
-                    wrapMode: TextArea.Wrap
-                    selectByMouse: true
-                    color: "#ffffff"
-                    placeholderTextColor: "#999"
-                    
-                    background: Rectangle {
-                        color: "transparent"
-                    }
-                }
-            }
+        TextField {
+            Layout.fillWidth: true
+            id: excludedUsersInput
+            text: currentExcludedUsers
+            placeholderText: "Enter usernames separated by commas..."
+            //wrapMode: TextArea.Wrap
+            selectByMouse: true
+            color: "#ffffff"
+            placeholderTextColor: "#999"
         }
-        
+            
         RowLayout {
             Layout.fillWidth: true
             spacing: 10

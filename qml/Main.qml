@@ -204,24 +204,181 @@ ApplicationWindow {
                 delegate: ItemDelegate {
                     width: usersList.width
                     height: 40
-                    
+
                     RowLayout {
                         anchors.fill: parent
                         anchors.margins: 10
-                        
-                        Rectangle {
-                            width: 12
-                            height: 12
-                            color: "#4CAF50"
-                            radius: 6
+
+                        // Green dot - always visible on the left
+                        //Rectangle {
+                        //    width: 8
+                        //    height: 8
+                        //    color: "#4CAF50"
+                        //    radius: 4
+                        //    Layout.alignment: Qt.AlignVCenter
+                        //}
+
+                        Item {
+                            width: 26
+                            height: 20
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Row {
+                                anchors.bottom: parent.bottom
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.bottomMargin: 2
+                                spacing: 3
+
+                                // Bar 1
+                                Rectangle {
+                                    width: 4
+                                    height: model.speaking ? bar1Height : 2
+                                    color: "#4CAF50"
+                                    radius: 2
+                                    anchors.bottom: parent.bottom
+
+                                    property real bar1Height: 2
+
+                                    SequentialAnimation on bar1Height {
+                                        running: model.speaking || false
+                                        loops: Animation.Infinite
+
+                                        NumberAnimation {
+                                            to: 14
+                                            duration: 500
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 2
+                                            duration: 400
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 16
+                                            duration: 550
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 4
+                                            duration: 450
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                    }
+
+                                    // Smooth transition to 2px when not speaking
+                                    Behavior on height {
+                                        enabled: !(model.speaking || false)
+                                        NumberAnimation {
+                                            duration: 300
+                                            easing.type: Easing.OutQuad
+                                        }
+                                    }
+                                }
+
+                                // Bar 2
+                                Rectangle {
+                                    width: 4
+                                    height: model.speaking ? bar2Height : 2
+                                    color: "#66BB6A"
+                                    radius: 2
+                                    anchors.bottom: parent.bottom
+
+                                    property real bar2Height: 2
+
+                                    SequentialAnimation on bar2Height {
+                                        running: model.speaking || false
+                                        loops: Animation.Infinite
+
+                                        NumberAnimation {
+                                            to: 18
+                                            duration: 520
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 3
+                                            duration: 380
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 15
+                                            duration: 480
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 6
+                                            duration: 420
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                    }
+
+                                    // Smooth transition to 2px when not speaking
+                                    Behavior on height {
+                                        enabled: !(model.speaking || false)
+                                        NumberAnimation {
+                                            duration: 350
+                                            easing.type: Easing.OutQuad
+                                        }
+                                    }
+                                }
+
+                                // Bar 3
+                                Rectangle {
+                                    width: 4
+                                    height: model.speaking ? bar3Height : 2
+                                    color: "#81C784"
+                                    radius: 2
+                                    anchors.bottom: parent.bottom
+
+                                    property real bar3Height: 2
+
+                                    SequentialAnimation on bar3Height {
+                                        running: model.speaking || false
+                                        loops: Animation.Infinite
+
+                                        NumberAnimation {
+                                            to: 12
+                                            duration: 460
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 5
+                                            duration: 500
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 17
+                                            duration: 440
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        NumberAnimation {
+                                            to: 2
+                                            duration: 480
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                    }
+
+                                    // Smooth transition to 2px when not speaking
+                                    Behavior on height {
+                                        enabled: !(model.speaking || false)
+                                        NumberAnimation {
+                                            duration: 400
+                                            easing.type: Easing.OutQuad
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        
+
                         Label {
                             text: model.name || ""
                             Layout.fillWidth: true
                             font.pixelSize: 14
+                            color: "#ffffff"
                         }
-                        
+
+                        // Audio bars container - on the right, always visible
+
+
                         Label {
                             text: "Recording"
                             color: "#666"

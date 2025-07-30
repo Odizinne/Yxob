@@ -299,25 +299,44 @@ class UserListModel(QAbstractListModel):
             return user["name"]
         elif role == Qt.UserRole:
             return user["id"]
+        elif role == Qt.UserRole + 1:  # Speaking state
+            return user.get("speaking", False)
         return None
 
     def roleNames(self):
-        return {Qt.DisplayRole: b"name", Qt.UserRole: b"userId"}
+        return {
+            Qt.DisplayRole: b"name", 
+            Qt.UserRole: b"userId",
+            Qt.UserRole + 1: b"speaking"
+        }
 
-    @Slot(str, str)
-    def add_user(self, name, user_id):
-        print(f"Adding user to model: {name} (ID: {user_id})")
-
+    @Slot(str, str, bool)
+    def add_user_with_speaking_state(self, name, user_id, speaking=False):
+        """Add user with initial speaking state"""
+        print(f"Adding user to model: {name} (ID: {user_id}, Speaking: {speaking})")
+    
         for user in self._users:
             if user["id"] == user_id:
-                print(f"User {name} already exists in model")
+                print(f"User {name} already exists in model, updating speaking state")
+                user["speaking"] = speaking
+                # Find index and emit dataChanged
+                for i, u in enumerate(self._users):
+                    if u["id"] == user_id:
+                        model_index = self.index(i, 0)
+                        self.dataChanged.emit(model_index, model_index, [Qt.UserRole + 1])
+                        break
                 return
-
+    
         self.beginInsertRows(QModelIndex(), len(self._users), len(self._users))
-        self._users.append({"name": name, "id": user_id})
+        self._users.append({"name": name, "id": user_id, "speaking": speaking})
         self.endInsertRows()
-
-        print(f"User {name} added to model. Total users: {len(self._users)}")
+    
+        print(f"User {name} added to model with speaking={speaking}. Total users: {len(self._users)}")
+    
+    @Slot(str, str)
+    def add_user(self, name, user_id):
+        """Add user with default non-speaking state"""
+        self.add_user_with_speaking_state(name, user_id, False)
 
     @Slot(str)
     def remove_user(self, user_id):
@@ -331,6 +350,21 @@ class UserListModel(QAbstractListModel):
                 return
         
         print(f"User ID {user_id} not found in model")
+
+    @Slot(str, bool)
+    def set_user_speaking(self, user_id, speaking):
+        """Update speaking state for a user"""
+        for i, user in enumerate(self._users):
+            if user["id"] == user_id:
+                if user.get("speaking", False) != speaking:
+                    user["speaking"] = speaking
+                    model_index = self.index(i, 0)
+                    self.dataChanged.emit(model_index, model_index, [Qt.UserRole + 1])
+                return
+        
+        # If user not found and they're speaking, they might be new
+        if speaking:
+            print(f"User {user_id} is speaking but not in model yet")
 
     @Slot()
     def clear_users(self):

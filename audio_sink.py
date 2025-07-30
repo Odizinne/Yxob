@@ -1,7 +1,8 @@
 import os
 import wave
 import re
-import uuid
+import struct
+import time
 from datetime import datetime
 from discord.ext import voice_recv
 from PySide6.QtCore import QStandardPaths
@@ -11,13 +12,14 @@ class SimpleRecordingSink(voice_recv.AudioSink):
     def __init__(self, callback=None, excluded_users=None):
         super().__init__()
         self.files = {}
-        # Use timestamp + short UUID for guaranteed uniqueness
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        self.sessionid = f"{timestamp}_{unique_id}"
+        self.sessionid = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.callback = callback
         self.user_session_count = {}
         self.excluded_users = excluded_users or []
+        
+        # Speaking detection - simplified
+        self.user_speaking_states = {}
+        self.speaking_threshold = 50  # Very low threshold just to detect any audio vs silence
         
         # Base recordings directory
         self.base_recordings_dir = QStandardPaths.writableLocation(
@@ -75,6 +77,41 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         
         return sanitized
 
+    def calculate_audio_level(self, pcm_data):
+        """Calculate RMS level of PCM audio data"""
+        if not pcm_data or len(pcm_data) < 2:
+            return 0
+        
+        # PCM data is 16-bit, so unpack as shorts
+        try:
+            samples = struct.unpack(f'<{len(pcm_data)//2}h', pcm_data)
+            if not samples:
+                return 0
+            
+            # Calculate RMS
+            sum_squares = sum(sample * sample for sample in samples)
+            rms = (sum_squares / len(samples)) ** 0.5
+            return rms
+        except:
+            return 0
+
+    def update_speaking_state(self, user_id, user_display_name, audio_level):
+        """Update speaking state based on audio level - immediate detection only"""
+        is_speaking_now = audio_level > self.speaking_threshold
+        was_speaking = self.user_speaking_states.get(user_id, False)
+
+        # Always update the current state
+        self.user_speaking_states[user_id] = is_speaking_now
+
+        # Only emit signals when state actually changes
+        if is_speaking_now != was_speaking:
+            if is_speaking_now:
+                if self.callback:
+                    self.callback.userStartedSpeaking.emit(user_id)
+            else:
+                if self.callback:
+                    self.callback.userStoppedSpeaking.emit(user_id)
+
     def update_excluded_users(self, excluded_users):
         """Update the excluded users list"""
         self.excluded_users = excluded_users or []
@@ -101,18 +138,24 @@ class SimpleRecordingSink(voice_recv.AudioSink):
 
         user_id = str(user.id)
 
+        # Calculate audio level for speaking detection FIRST
+        if hasattr(data, "pcm") and data.pcm:
+            audio_level = self.calculate_audio_level(data.pcm)
+            # Always update speaking state, even for new users
+            self.update_speaking_state(user_id, user.display_name, audio_level)
+
         if user_id not in self.files:
             session_count = self.user_session_count.get(user_id, 0) + 1
             self.user_session_count[user_id] = session_count
-            
+
             # Sanitize the username for filename
             safe_username = self.sanitize_filename(user.display_name)
-            
+
             session_suffix = f"_session{session_count}" if session_count > 1 else ""
             filename = f"recording_{self.sessionid}_{safe_username}{session_suffix}.wav"
-            
+
             filepath = os.path.join(self.recordings_dir, filename)
-            
+
             try:
                 wav_file = wave.open(filepath, "wb")
                 # Set parameters immediately to avoid issues during cleanup
@@ -125,7 +168,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
 
                 if self.callback:
                     self.callback.userDetected.emit(user.display_name, user_id)
-                    
+
             except Exception as e:
                 print(f"Error creating wave file for user {user.display_name}: {e}")
                 print(f"Attempted filename: {filename}")
@@ -151,6 +194,15 @@ class SimpleRecordingSink(voice_recv.AudioSink):
             finally:
                 # Always remove from files dict even if close failed
                 del self.files[user_id]
+                
+            # Clean up speaking state and emit stopped speaking
+            if user_id in self.user_speaking_states:
+                del self.user_speaking_states[user_id]
+                
+            # Always emit stopped speaking when user leaves
+            if self.callback:
+                self.callback.userStoppedSpeaking.emit(user_id)
+                
             return True
         return False
 
@@ -158,6 +210,11 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         """Safely cleanup all recordings"""
         print(f"Cleaning up {len(self.files)} open recordings...")
         user_ids = list(self.files.keys())
+        
+        # Emit stopped speaking for all users
+        if self.callback:
+            for user_id in user_ids:
+                self.callback.userStoppedSpeaking.emit(user_id)
         
         for user_id in user_ids:
             try:
@@ -170,6 +227,8 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         # Clear all data structures
         self.files.clear()
         self.user_session_count.clear()
+        self.user_speaking_states.clear()
+        
         print("Cleanup completed")
         return user_ids
 

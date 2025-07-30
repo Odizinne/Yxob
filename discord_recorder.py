@@ -13,7 +13,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtQml import QmlElement
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QProcess
+from PySide6.QtCore import QProcess, Qt
 
 from audio_sink import SimpleRecordingSink
 from workers import AsyncWorker, TranscriptionWorker
@@ -46,6 +46,8 @@ class DiscordRecorder(QObject):
     guildsUpdated = Signal()
     channelsUpdated = Signal()
     joinedStateChanged = Signal(bool)
+    userStartedSpeaking = Signal(str)
+    userStoppedSpeaking = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,6 +68,7 @@ class DiscordRecorder(QObject):
         self._selected_channel_index = -1
         self._is_joined = False
         self._excluded_users = []
+        self._pending_speaking_states = {}
 
         self._recordings_dir = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.AppDataLocation
@@ -73,13 +76,16 @@ class DiscordRecorder(QObject):
         os.makedirs(self._recordings_dir, exist_ok=True)
 
         # Connect signals
-        self.userDetected.connect(self._user_model.add_user)
+        self.userDetected.connect(self._on_user_detected)
+        self.userStartedSpeaking.connect(self._on_user_started_speaking)
+        self.userStoppedSpeaking.connect(self._on_user_stopped_speaking)
+        #self.userDetected.connect(self._user_model.add_user)
         self.userLeft.connect(self._user_model.remove_user)
         self.clearUserList.connect(self._user_model.clear_users)
 
         self._recordings_model.refresh_recordings(self._recordings_dir)
         
-        # Load excluded users from settings
+        # Load excluded users from settings@
         self._load_excluded_users()
 
     def _load_excluded_users(self):
@@ -305,6 +311,46 @@ class DiscordRecorder(QObject):
             self.refreshRecordings()
         else:
             print("No files were deleted")
+
+    @Slot(str, str)
+    def _on_user_detected(self, name, user_id):
+        """Handle new user detected"""
+        # Check if we have a pending speaking state for this user
+        is_speaking = self._pending_speaking_states.get(user_id, False)
+        
+        # Add user with correct initial speaking state
+        self._user_model.add_user_with_speaking_state(name, user_id, is_speaking)
+        
+        # Clean up pending state
+        if user_id in self._pending_speaking_states:
+            del self._pending_speaking_states[user_id]
+        
+        print(f"User {name} added to model with speaking state: {is_speaking}")
+
+    @Slot(str)
+    def _on_user_started_speaking(self, user_id):
+        """Handle user started speaking"""
+        # Try to update existing user first
+        found_user = False
+        for i in range(self._user_model.rowCount()):
+            index = self._user_model.index(i, 0)
+            if self._user_model.data(index, Qt.UserRole) == user_id:
+                self._user_model.set_user_speaking(user_id, True)
+                found_user = True
+                break
+        
+        # If user not found, store pending state
+        if not found_user:
+            self._pending_speaking_states[user_id] = True
+            print(f"Stored pending speaking state for user {user_id}")
+
+    @Slot(str)
+    def _on_user_stopped_speaking(self, user_id):
+        """Handle user stopped speaking"""
+        self._user_model.set_user_speaking(user_id, False)
+        # Also clear any pending state
+        if user_id in self._pending_speaking_states:
+            del self._pending_speaking_states[user_id]
 
     # Transcription
     @Slot()
