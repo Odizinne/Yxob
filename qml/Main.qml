@@ -71,7 +71,7 @@ ApplicationWindow {
                 font.pixelSize: 20
                 font.bold: true
                 font.family: "Consolas, Monaco, monospace"
-                color: recorder && recorder.isRecording ? Material.accent : Material.hintTextColor
+                opacity: recorder && recorder.isRecording ? 1 : 0.5
             }
         }
     }
@@ -80,37 +80,45 @@ ApplicationWindow {
         height: 30
         Material.background: {
             if (recorder && recorder.isRecording) {
-                return "#d13438" 
+                if (recorder.isPaused) {
+                    return "#ff8c00" // Orange for paused
+                } else {
+                    return "#d13438" // Red for recording
+                }
             } else if (recorder && recorder.botConnected) {
-                return "#107c10" 
+                return "#107c10" // Green for connected
             } else {
-                return "#ff8c00" 
+                return "#ff8c00" // Orange for connecting
             }
         }
-        
+
         RowLayout {
             anchors.centerIn: parent
             spacing: 10
-            
+
             Rectangle {
                 width: 10
                 height: 10
                 color: "white"
                 radius: 5
                 visible: recorder ? recorder.isRecording : false
-                
+
                 SequentialAnimation on opacity {
-                    running: recorder ? recorder.isRecording : false
+                    running: recorder ? (recorder.isRecording && !recorder.isPaused) : false
                     loops: Animation.Infinite
                     NumberAnimation { to: 0.3; duration: 500 }
                     NumberAnimation { to: 1.0; duration: 500 }
                 }
             }
-            
+
             Label {
                 text: {
                     if (recorder && recorder.isRecording) {
-                        return "Recording..."
+                        if (recorder.isPaused) {
+                            return "Paused"
+                        } else {
+                            return "Recording..."
+                        }
                     } else if (recorder && recorder.botConnected) {
                         return "Connected!"
                     } else {
@@ -141,38 +149,31 @@ ApplicationWindow {
                 
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
                     spacing: 10
-
-                    Button {
-                        text: "Server selection"
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: implicitWidth - 2
+                    
+                    RoundButton {
+                        icon.source: "icons/discord.png"
+                        icon.height: 14
+                        icon.width: 14
+                        Material.accent: Material.DeepPurple
+                        highlighted: true
                         enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
                         onClicked: discordDialog.open()
                     }
 
-                    Button {
-                        text: "User Exclusions"
+                    Item {
                         Layout.fillWidth: true
-                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                        onClicked: userExclusionDialog.show()
                     }
-                }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: 10
-                    
-                    Button {
+                    RoundButton {
                         id: startBtn
-                        Layout.fillWidth: true
-                        text: "Start Recording"
                         icon.source: "icons/record.png"
                         icon.height: 14
                         icon.width: 14
                         enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
                         highlighted: true
+                        Material.accent: "#eb4b3f"
                         onClicked: {
                             if (recorder) {
                                 recorder.startRecording()
@@ -183,9 +184,25 @@ ApplicationWindow {
                         }
                     }
                     
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Stop Recording"
+                    RoundButton {
+                        icon.source: recorder && recorder.isPaused ? "icons/play.png" : "icons/pause.png"
+                        icon.height: 14
+                        icon.width: 14
+                        enabled: recorder ? (recorder.isRecording && !recorder.isTranscribing) : false
+                        onClicked: {
+                            if (recorder) {
+                                if (recorder.isPaused) {
+                                    recorder.resumeRecording()
+                                    recordingTimer.start()
+                                } else {
+                                    recorder.pauseRecording()
+                                    recordingTimer.stop()
+                                }
+                            }
+                        }
+                    }
+                    
+                    RoundButton {
                         icon.source: "icons/stop.png"
                         icon.height: 14
                         icon.width: 14
@@ -198,6 +215,18 @@ ApplicationWindow {
                                 recordingTime = "00:00"
                             }
                         }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    RoundButton {
+                        icon.source: "icons/ban.png"
+                        icon.height: 14
+                        icon.width: 14
+                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                        onClicked: userExclusionDialog.show()
                     }
                 }
             }
@@ -381,8 +410,12 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "Recording"
-                            color: Material.hintTextColor
+                            text: {
+                                if (!recorder) return ""
+                                if (recorder.isPaused) return "Paused"
+                                return "Recording"
+                            }
+                            color: recorder && recorder.isPaused ? Material.hintTextColor : Material.hintTextColor
                             font.pixelSize: 12
                         }
                     }

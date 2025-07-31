@@ -48,6 +48,7 @@ class DiscordRecorder(QObject):
     joinedStateChanged = Signal(bool)
     userStartedSpeaking = Signal(str)
     userStoppedSpeaking = Signal(str)
+    pauseStateChanged = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,6 +70,7 @@ class DiscordRecorder(QObject):
         self._is_joined = False
         self._excluded_users = []
         self._pending_speaking_states = {}
+        self._is_paused = False
 
         self._recordings_dir = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.AppDataLocation
@@ -192,6 +194,10 @@ class DiscordRecorder(QObject):
     def isJoined(self):
         return self._is_joined
 
+    @Property(bool, notify=pauseStateChanged)
+    def isPaused(self):
+        return self._is_paused
+
     # Setters
     def _set_status(self, status):
         if self._status != status:
@@ -223,6 +229,11 @@ class DiscordRecorder(QObject):
         if self._is_joined != joined:
             self._is_joined = joined
             self.joinedStateChanged.emit(joined)
+
+    def _set_paused(self, paused):
+        if self._is_paused != paused:
+            self._is_paused = paused
+            self.pauseStateChanged.emit(paused)
 
     # Guild and Channel management
     @Slot(int)
@@ -595,12 +606,27 @@ class DiscordRecorder(QObject):
                 self._stop_recording_async(), self._worker.loop
             )
 
+    @Slot()
+    def pauseRecording(self):
+        if self._worker and self._worker.loop:
+            asyncio.run_coroutine_threadsafe(
+                self._pause_recording_async(), self._worker.loop
+            )
+
+    @Slot()
+    def resumeRecording(self):
+        if self._worker and self._worker.loop:
+            asyncio.run_coroutine_threadsafe(
+                self._resume_recording_async(), self._worker.loop
+            )
+
     async def _stop_recording_async(self):
         try:
             print("Stopping recording...")
 
             # Always set recording to False first to ensure UI updates
             self._set_recording(False)
+            self._set_paused(False)
 
             if not self._voice_client:
                 self._set_status("Not connected to any voice channel")
@@ -641,6 +667,54 @@ class DiscordRecorder(QObject):
             self._set_recording(False)
             self._set_status(f"Error stopping recording: {str(e)}")
             print(f"Stop recording error: {e}")
+
+    async def _pause_recording_async(self):
+        try:
+            if not self._is_recording or self._is_paused:
+                return
+
+            self._set_paused(True)
+
+            if self._current_sink:
+                self._current_sink.set_paused(True)
+
+            channel_name = "Unknown"
+            guild_name = "Unknown"
+
+            if self._voice_client and self._voice_client.channel:
+                channel_name = self._voice_client.channel.name
+                guild_name = self._voice_client.channel.guild.name
+
+            self._set_status(f"Recording paused in {channel_name} ({guild_name})")
+            print("Recording paused")
+
+        except Exception as e:
+            self._set_status(f"Error pausing recording: {str(e)}")
+            print(f"Pause error: {e}")
+
+    async def _resume_recording_async(self):
+        try:
+            if not self._is_recording or not self._is_paused:
+                return
+
+            self._set_paused(False)
+
+            if self._current_sink:
+                self._current_sink.set_paused(False)
+
+            channel_name = "Unknown"
+            guild_name = "Unknown"
+
+            if self._voice_client and self._voice_client.channel:
+                channel_name = self._voice_client.channel.name
+                guild_name = self._voice_client.channel.guild.name
+
+            self._set_status(f"Recording resumed in {channel_name} ({guild_name})")
+            print("Recording resumed")
+
+        except Exception as e:
+            self._set_status(f"Error resuming recording: {str(e)}")
+            print(f"Resume error: {e}")
 
     async def _run_bot(self):
         @bot.event
@@ -731,3 +805,4 @@ class DiscordRecorder(QObject):
         except Exception as e:
             self._set_status(f"Bot error: {str(e)}")
             self._set_bot_connected(False)
+
