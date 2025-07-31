@@ -13,6 +13,34 @@ ApplicationWindow {
     property int recordingSeconds: 0
     property string recordingTime: "00:00"
     
+    SystemPalette {
+        id: systemPalette
+        colorGroup: SystemPalette.Active
+    }
+
+    readonly property bool isDarkMode: {
+        // Method 1: Qt 6.5+ color scheme detection
+        if (typeof Qt.styleHints !== 'undefined' && Qt.styleHints.colorScheme !== undefined) {
+            return Qt.styleHints.colorScheme === Qt.Dark
+        }
+
+        // Method 2: Fallback - check if window background is darker than text
+        const windowColor = systemPalette.window
+        const textColor = systemPalette.windowText
+
+        // Calculate luminance of window background
+        const r = ((windowColor.r * 255) * 0.299)
+        const g = ((windowColor.g * 255) * 0.587)
+        const b = ((windowColor.b * 255) * 0.114)
+        const luminance = (r + g + b) / 255
+
+        return luminance < 0.5 // Dark if luminance is less than 50%
+    }
+
+    readonly property color surfaceColor: isDarkMode ? "#2b2b2b" : "#ffffff"
+    readonly property color headerColor: isDarkMode ? "#1e1e1e" : "#dddddd"
+    readonly property color headerBorderColor: isDarkMode ? "#2b2b2b" : "#cccccc"
+
     Timer {
         id: recordingTimer
         interval: 1000
@@ -42,8 +70,8 @@ ApplicationWindow {
     header: Rectangle {
         Layout.fillWidth: true
         height: 50
-        color: "#1e1e1e"
-        border.color: "#333"
+        color: window.headerColor
+        border.color: window.headerBorderColor
         border.width: 1
         
         RowLayout {
@@ -193,7 +221,7 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#2b2b2b"
+            color: window.surfaceColor
             radius: 5
             
             ListView {

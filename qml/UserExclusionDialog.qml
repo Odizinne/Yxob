@@ -35,22 +35,21 @@ ApplicationWindow {
                 text: "Excluded Users"
                 font.pixelSize: 16
                 font.bold: true
-                color: "#ffffff"
             }
             
             Label {
                 text: "Enter usernames separated by commas. These users will not be recorded."
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#cccccc"
                 font.pixelSize: 12
+                opacity: 0.8
             }
             
             Label {
                 text: "Example: user1, user2, user3"
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                color: "#999999"
+                opacity: 0.5
                 font.pixelSize: 11
                 font.italic: true
             }

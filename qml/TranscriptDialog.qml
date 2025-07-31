@@ -20,6 +20,41 @@ ApplicationWindow {
         }
     }
     
+    SystemPalette {
+        id: systemPalette
+        colorGroup: SystemPalette.Active
+    }
+
+    readonly property bool isDarkMode: {
+        // Method 1: Qt 6.5+ color scheme detection
+        if (typeof Qt.styleHints !== 'undefined' && Qt.styleHints.colorScheme !== undefined) {
+            return Qt.styleHints.colorScheme === Qt.Dark
+        }
+
+        // Method 2: Fallback - check if window background is darker than text
+        const windowColor = systemPalette.window
+        const textColor = systemPalette.windowText
+
+        // Calculate luminance of window background
+        const r = ((windowColor.r * 255) * 0.299)
+        const g = ((windowColor.g * 255) * 0.587)
+        const b = ((windowColor.b * 255) * 0.114)
+        const luminance = (r + g + b) / 255
+
+        return luminance < 0.5 // Dark if luminance is less than 50%
+    }
+
+    readonly property color surfaceColor: isDarkMode ? "#2b2b2b" : "#ffffff"
+    readonly property color headerColor: isDarkMode ? "#3a3a3a" : "#cccccc"
+    readonly property color headerBorderColor: isDarkMode ? "#2b2b2b" : "#cccccc"
+    readonly property color borderColor: isDarkMode ? "#444444" : "#cccccc"
+    readonly property color primaryTextColor: isDarkMode ? "#ffffff" : "#000000"
+    readonly property color secondaryTextColor: isDarkMode ? "#999999" : "#666666"
+    readonly property color tertiaryTextColor: isDarkMode ? "#cccccc" : "#888888"
+    readonly property color hoverColor: isDarkMode ? "#404040" : "#f0f0f0"
+    readonly property color statusBorderColor: isDarkMode ? "#666666" : "#999999"
+    readonly property color placeholderTextColor: isDarkMode ? "#888888" : "#999999"
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -81,13 +116,14 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     font.pixelSize: 14
                     font.bold: true
+                    color: primaryTextColor
                 }
                 
                 Label {
                     text: "This may take several minutes depending on file size and length..."
                     Layout.fillWidth: true
                     font.pixelSize: 12
-                    color: "#999"
+                    color: secondaryTextColor
                     visible: recorder ? recorder.isTranscribing : false
                 }
             }
@@ -96,9 +132,9 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#2b2b2b"
+            color: transcriptDialog.surfaceColor
             radius: 8
-            border.color: "#444"
+            border.color: transcriptDialog.borderColor
             border.width: 1
             
             ColumnLayout {
@@ -109,7 +145,7 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 35
-                    color: "#3a3a3a"
+                    color: transcriptDialog.headerColor
                     radius: 4
                     
                     RowLayout {
@@ -121,24 +157,24 @@ ApplicationWindow {
                             text: "Select"
                             font.pixelSize: 12
                             font.bold: true
-                            color: "#ccc"
                             Layout.preferredWidth: 60
+                            color: primaryTextColor
                         }
                         
                         Label {
                             text: "Recording"
                             font.pixelSize: 12
                             font.bold: true
-                            color: "#ccc"
                             Layout.fillWidth: true
+                            color: primaryTextColor
                         }
                         
                         Label {
                             text: "Size"
                             font.pixelSize: 12
                             font.bold: true
-                            color: "#ccc"
                             Layout.preferredWidth: 45
+                            color: primaryTextColor
 
                         }
                         
@@ -146,9 +182,9 @@ ApplicationWindow {
                             text: "Status"
                             font.pixelSize: 12
                             font.bold: true
-                            color: "#ccc"
                             Layout.preferredWidth: 60
                             Layout.rightMargin: - 15
+                            color: primaryTextColor
                         }
                     }
                 }
@@ -164,16 +200,17 @@ ApplicationWindow {
                     Label {
                         anchors.centerIn: parent
                         text: "No recordings found\n\nRecord some audio first, then return here to transcribe it."
-                        color: "#999"
+                        opacity: 0.8
                         visible: recordingsList.count === 0 && recorder && recorder.recordingsModel
                         horizontalAlignment: Text.AlignHCenter
                         font.pixelSize: 14
+                        color: placeholderTextColor
                     }
 
                     delegate: Rectangle {
                         width: recordingsList.width
                         height: 50
-                        color: mouseArea.containsMouse ? "#404040" : "transparent"
+                        color: mouseArea.containsMouse ? transcriptDialog.hoverColor : "transparent"
                         radius: 4
                         
                         MouseArea {
@@ -226,7 +263,7 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     font.pixelSize: 13
                                     elide: Text.ElideRight
-                                    color: "#fff"
+                                    color: primaryTextColor
                                 }
 
                                 RowLayout {
@@ -237,7 +274,7 @@ ApplicationWindow {
                                         text: name || "Unknown"
                                         Layout.fillWidth: true
                                         font.pixelSize: 10
-                                        color: "#999"
+                                        color: secondaryTextColor
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -247,7 +284,7 @@ ApplicationWindow {
                                 text: size || ""
                                 Layout.preferredWidth: 80
                                 font.pixelSize: 12
-                                color: "#ccc"
+                                color: tertiaryTextColor
                                 horizontalAlignment: Text.AlignRight
                             }
                             
@@ -256,14 +293,14 @@ ApplicationWindow {
                                 height: 20
                                 color: hasTranscript ? "#4CAF50" : "transparent"
                                 radius: 10
-                                border.color: hasTranscript ? "#4CAF50" : "#666"
+                                border.color: hasTranscript ? "#4CAF50" : statusBorderColor
                                 border.width: 1
                                 
                                 Label {
                                     anchors.centerIn: parent
                                     text: hasTranscript ? "Done" : "Pending"
                                     font.pixelSize: 9
-                                    color: hasTranscript ? "white" : "#999"
+                                    color: hasTranscript ? "white" : secondaryTextColor
                                     font.bold: hasTranscript
                                 }
                             }
