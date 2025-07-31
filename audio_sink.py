@@ -2,7 +2,6 @@ import os
 import wave
 import re
 import struct
-import time
 from datetime import datetime
 from discord.ext import voice_recv
 from PySide6.QtCore import QStandardPaths
