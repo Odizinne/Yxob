@@ -150,7 +150,7 @@ ApplicationWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
-                    spacing: 10
+                    spacing: 5
                     
                     RoundButton {
                         icon.source: "icons/discord.png"
