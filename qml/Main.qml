@@ -153,7 +153,7 @@ ApplicationWindow {
                     spacing: 5
                     
                     RoundButton {
-                        icon.source: "icons/discord.png"
+                        icon.source: "icons/discord.svg"
                         icon.height: 14
                         icon.width: 14
                         Material.accent: Material.DeepPurple
