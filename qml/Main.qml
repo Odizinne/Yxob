@@ -1,7 +1,7 @@
 import QtQuick 
-import QtQuick.Window 
-import QtQuick.Controls.FluentWinUI3
-import QtQuick.Layouts 
+import QtQuick.Layouts
+import QtQuick.Controls.Material
+import "."
 
 ApplicationWindow {
     id: window
@@ -9,37 +9,13 @@ ApplicationWindow {
     height: 520
     visible: true
     title: "Yxob"
+    Material.theme: YxobSettings.darkMode ? Material.Dark : Material.Light
+    Material.accent: Colors.accentColor
+    Material.primary: Colors.primaryColor
+    color: Colors.backgroundColor
     
     property int recordingSeconds: 0
     property string recordingTime: "00:00"
-    
-    SystemPalette {
-        id: systemPalette
-        colorGroup: SystemPalette.Active
-    }
-
-    readonly property bool isDarkMode: {
-        // Method 1: Qt 6.5+ color scheme detection
-        if (typeof Qt.styleHints !== 'undefined' && Qt.styleHints.colorScheme !== undefined) {
-            return Qt.styleHints.colorScheme === Qt.Dark
-        }
-
-        // Method 2: Fallback - check if window background is darker than text
-        const windowColor = systemPalette.window
-        const textColor = systemPalette.windowText
-
-        // Calculate luminance of window background
-        const r = ((windowColor.r * 255) * 0.299)
-        const g = ((windowColor.g * 255) * 0.587)
-        const b = ((windowColor.b * 255) * 0.114)
-        const luminance = (r + g + b) / 255
-
-        return luminance < 0.5 // Dark if luminance is less than 50%
-    }
-
-    readonly property color surfaceColor: isDarkMode ? "#2b2b2b" : "#ffffff"
-    readonly property color headerColor: isDarkMode ? "#1e1e1e" : "#dddddd"
-    readonly property color headerBorderColor: isDarkMode ? "#2b2b2b" : "#cccccc"
 
     Timer {
         id: recordingTimer
@@ -67,12 +43,9 @@ ApplicationWindow {
         id: transcriptDialog
     }
     
-    header: Rectangle {
-        Layout.fillWidth: true
+    header: ToolBar {
         height: 50
-        color: window.headerColor
-        border.color: window.headerBorderColor
-        border.width: 1
+        Material.elevation: 6
         
         RowLayout {
             anchors.centerIn: parent
@@ -81,7 +54,7 @@ ApplicationWindow {
             Rectangle {
                 width: 8
                 height: 8
-                color: recorder && recorder.isRecording ? "#d13438" : "#666"
+                color: recorder && recorder.isRecording ? "#d13438" : Material.hintTextColor
                 radius: 4
                 visible: recorder ? recorder.isRecording : false
                 
@@ -98,15 +71,14 @@ ApplicationWindow {
                 font.pixelSize: 20
                 font.bold: true
                 font.family: "Consolas, Monaco, monospace"
-                color: recorder && recorder.isRecording ? "#ffffff" : "#666"
+                color: recorder && recorder.isRecording ? Material.accent : Material.hintTextColor
             }
         }
     }
         
-    footer: Rectangle {
-        Layout.fillWidth: true
+    footer: ToolBar {
         height: 30
-        color: {
+        Material.background: {
             if (recorder && recorder.isRecording) {
                 return "#d13438" 
             } else if (recorder && recorder.botConnected) {
@@ -157,73 +129,87 @@ ApplicationWindow {
         anchors.margins: 20
         spacing: 15
         
-        ColumnLayout {
+        Pane {
             Layout.fillWidth: true
-            spacing: 10
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Button {
-                    text: "Server selection"
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: implicitWidth - 2
-                    enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                    onClicked: discordDialog.open()
-                }
-
-                Button {
-                    text: "User Exclusions"
-                    Layout.fillWidth: true
-                    enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                    onClicked: userExclusionDialog.show()
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
+            Material.background: Colors.paneColor
+            Material.elevation: 6
+            Material.roundedScale: Material.ExtraSmallScale
+            
+            ColumnLayout {
+                anchors.fill: parent
                 spacing: 10
                 
-                Button {
-                    id: startBtn
+                RowLayout {
                     Layout.fillWidth: true
-                    text: "Start Recording"
-                    icon.source: "icons/record.png"
-                    enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                    onClicked: {
-                        if (recorder) {
-                            recorder.startRecording()
-                            recordingSeconds = 0
-                            recordingTime = "00:00"
-                            recordingTimer.start()
-                        }
+                    spacing: 10
+
+                    Button {
+                        text: "Server selection"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: implicitWidth - 2
+                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                        onClicked: discordDialog.open()
+                    }
+
+                    Button {
+                        text: "User Exclusions"
+                        Layout.fillWidth: true
+                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                        onClicked: userExclusionDialog.show()
                     }
                 }
-                
-                Button {
+
+                RowLayout {
                     Layout.fillWidth: true
-                    text: "Stop Recording"
-                    icon.source: "icons/stop.png"
-                    enabled: recorder ? recorder.isRecording : false
-                    onClicked: {
-                        if (recorder) {
-                            recorder.stopRecording()
-                            recordingTimer.stop()
-                            recordingSeconds = 0
-                            recordingTime = "00:00"
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 10
+                    
+                    Button {
+                        id: startBtn
+                        Layout.fillWidth: true
+                        text: "Start Recording"
+                        icon.source: "icons/record.png"
+                        icon.height: 14
+                        icon.width: 14
+                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                        highlighted: true
+                        onClicked: {
+                            if (recorder) {
+                                recorder.startRecording()
+                                recordingSeconds = 0
+                                recordingTime = "00:00"
+                                recordingTimer.start()
+                            }
+                        }
+                    }
+                    
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Stop Recording"
+                        icon.source: "icons/stop.png"
+                        icon.height: 14
+                        icon.width: 14
+                        enabled: recorder ? recorder.isRecording : false
+                        onClicked: {
+                            if (recorder) {
+                                recorder.stopRecording()
+                                recordingTimer.stop()
+                                recordingSeconds = 0
+                                recordingTime = "00:00"
+                            }
                         }
                     }
                 }
             }
         }
         
-        Rectangle {
+        Pane {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: window.surfaceColor
-            radius: 5
-            
+            Material.background: Colors.paneColor
+            Material.elevation: 6
+            Material.roundedScale: Material.ExtraSmallScale
+
             ListView {
                 id: usersList
                 anchors.fill: parent
@@ -237,16 +223,8 @@ ApplicationWindow {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
-
-                        // Green dot - always visible on the left
-                        //Rectangle {
-                        //    width: 8
-                        //    height: 8
-                        //    color: "#4CAF50"
-                        //    radius: 4
-                        //    Layout.alignment: Qt.AlignVCenter
-                        //}
+                        anchors.leftMargin: 5
+                        anchors.rightMargin: 10
 
                         Item {
                             width: 26
@@ -263,7 +241,7 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 4
                                     height: model.speaking ? bar1Height : 2
-                                    color: "#4CAF50"
+                                    color: Material.accent
                                     radius: 2
                                     anchors.bottom: parent.bottom
 
@@ -295,7 +273,6 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // Smooth transition to 2px when not speaking
                                     Behavior on height {
                                         enabled: !(model.speaking || false)
                                         NumberAnimation {
@@ -309,7 +286,7 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 4
                                     height: model.speaking ? bar2Height : 2
-                                    color: "#66BB6A"
+                                    color: Qt.lighter(Material.accent, 1.2)
                                     radius: 2
                                     anchors.bottom: parent.bottom
 
@@ -341,7 +318,6 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // Smooth transition to 2px when not speaking
                                     Behavior on height {
                                         enabled: !(model.speaking || false)
                                         NumberAnimation {
@@ -355,7 +331,7 @@ ApplicationWindow {
                                 Rectangle {
                                     width: 4
                                     height: model.speaking ? bar3Height : 2
-                                    color: "#81C784"
+                                    color: Qt.lighter(Material.accent, 1.4)
                                     radius: 2
                                     anchors.bottom: parent.bottom
 
@@ -387,7 +363,6 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // Smooth transition to 2px when not speaking
                                     Behavior on height {
                                         enabled: !(model.speaking || false)
                                         NumberAnimation {
@@ -403,15 +378,11 @@ ApplicationWindow {
                             text: model.name || ""
                             Layout.fillWidth: true
                             font.pixelSize: 14
-                            color: "#ffffff"
                         }
-
-                        // Audio bars container - on the right, always visible
-
 
                         Label {
                             text: "Recording"
-                            color: "#666"
+                            color: Material.hintTextColor
                             font.pixelSize: 12
                         }
                     }
@@ -420,25 +391,22 @@ ApplicationWindow {
                 Label {
                     anchors.centerIn: parent
                     text: "No users being recorded"
-                    color: "#999"
+                    color: Material.hintTextColor
                     visible: usersList.count === 0
                 }
             }
         }
 
-        ColumnLayout {
+        Button {
             Layout.fillWidth: true
-            spacing: 10
-            
-            Button {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
-                text: "Transcript Recordings"
-                icon.source: "icons/transcript.png"
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                onClicked: {
-                    transcriptDialog.show()
-                }
+            Layout.alignment: Qt.AlignHCenter
+            text: "Transcript Recordings"
+            icon.source: "icons/transcript.png"
+            icon.height: 14
+            icon.width: 14
+            enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+            onClicked: {
+                transcriptDialog.show()
             }
         }
     }
@@ -453,6 +421,8 @@ ApplicationWindow {
         id: discordDialog
         modal: true
         title: "Channel selection"
+        Material.elevation: 8
+
         GridLayout {
             anchors.fill: parent
             rowSpacing: 12
@@ -543,7 +513,7 @@ ApplicationWindow {
                         Rectangle {
                             Layout.preferredWidth: 25
                             Layout.preferredHeight: 18
-                            color: memberCount > 0 ? "#4CAF50" : "#666"
+                            color: memberCount > 0 ? Material.accent : Material.hintTextColor
                             radius: 9
                             
                             Label {
@@ -567,6 +537,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 text: recorder && recorder.isJoined ? "Leave Channel" : "Join Channel"
                 enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                highlighted: recorder && !recorder.isJoined
                 onClicked: {
                     if (recorder) {
                         if (recorder.isJoined) {

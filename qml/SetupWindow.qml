@@ -1,39 +1,40 @@
 import QtQuick
-import QtQuick.Window
-import QtQuick.Controls.FluentWinUI3
 import QtQuick.Layouts
+import QtQuick.Controls.Material
+import "."
 
 ApplicationWindow {
     id: setupWindow
     visible: true
     width: 500
-    height: minimumHeight
+    height: lyt.implicitHeight + 70
     minimumWidth: 500
-    minimumHeight: mainLyt.implicitHeight + 40 + 50
+    minimumHeight: lyt.implicitHeight + 70
     title: "Yxob Setup"
+    Material.theme: YxobSettings.darkMode ? Material.Dark : Material.Light
+    Material.accent: Colors.accentColor
+    Material.primary: Colors.primaryColor
+    color: Colors.backgroundColor
     
     property bool tokenValid: tokenInput.text.trim() !== ""
     property bool readyToGo: tokenValid && setupManager.tokenValidationStatus === "Validated"
     
     signal setupFinished(string token)
     
-    header: Rectangle {
+    header: ToolBar {
         height: 50
-        color: "#1e1e1e"
-        border.color: "#333"
-        border.width: 1
+        Material.elevation: 6
         
         Label {
             anchors.centerIn: parent
             text: "Yxob Setup"
             font.pixelSize: 16
             font.bold: true
-            color: "#ffffff"
         }
     }
     
     ColumnLayout {
-        id: mainLyt
+        id: lyt
         anchors.fill: parent
         anchors.margins: 20
         spacing: 25
@@ -44,23 +45,19 @@ ApplicationWindow {
             
             Label {
                 text: "Create Discord Application"
-                font.pixelSize: 14
+                Layout.leftMargin: 10
+                color: Material.accent
                 font.bold: true
-                color: "#ffffff"
             }
             
-            Rectangle {
+            Pane {
                 Layout.fillWidth: true
-                height: devPortalContent.implicitHeight + 30
-                color: "#2b2b2b"
-                radius: 8
-                border.color: "#444"
-                border.width: 1
+                Material.background: Colors.paneColor
+                Material.elevation: 6
+                Material.roundedScale: Material.ExtraSmallScale
                 
                 ColumnLayout {
-                    id: devPortalContent
                     anchors.fill: parent
-                    anchors.margins: 15
                     spacing: 12
                     
                     Button {
@@ -74,32 +71,24 @@ ApplicationWindow {
                         text: "• Create a new application and name it 'Yxob'"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: "#cccccc"
-                        font.pixelSize: 13
                     }
                     
                     Label {
                         text: "• Go to the Bot tab"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: "#cccccc"
-                        font.pixelSize: 13
                     }
                     
                     Label {
                         text: "• Enable 'Server Members Intent'"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: "#cccccc"
-                        font.pixelSize: 13
                     }
                     
                     Label {
                         text: "• Click 'Reset Token' and copy it"
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        color: "#cccccc"
-                        font.pixelSize: 13
                     }
                 }
             }
@@ -111,29 +100,24 @@ ApplicationWindow {
             
             Label {
                 text: "Bot Token Setup"
-                font.pixelSize: 14
+                Layout.leftMargin: 10
+                color: Material.accent
                 font.bold: true
-                color: "#ffffff"
             }
             
-            Rectangle {
+            Pane {
                 Layout.fillWidth: true
-                height: tokenContent.implicitHeight + 30
-                color: "#2b2b2b"
-                radius: 8
-                border.color: "#444"
-                border.width: 1
+                Material.background: Colors.paneColor
+                Material.elevation: 6
+                Material.roundedScale: Material.ExtraSmallScale
                 
                 ColumnLayout {
-                    id: tokenContent
                     anchors.fill: parent
-                    anchors.margins: 15
                     spacing: 12
                     
                     Label {
                         text: "⚠️ Never share your bot token with anyone"
                         color: "#ff8c00"
-                        font.pixelSize: 12
                     }
                     
                     TextField {
@@ -148,8 +132,8 @@ ApplicationWindow {
                         spacing: 10
                         
                         Button {
-                            text:  setupManager && setupManager.tokenValidationStatus === "Validated" ? "✓ Token is valid" : "Validate Token"
-                            enabled:  setupManager && setupManager.tokenValidationStatus !== "Validated" && tokenInput.text.trim() !== ""
+                            text: setupManager && setupManager.tokenValidationStatus === "Validated" ? "✓ Token is valid" : "Validate Token"
+                            enabled: setupManager && setupManager.tokenValidationStatus !== "Validated" && tokenInput.text.trim() !== ""
                             onClicked: {
                                 setupManager.validate_token(tokenInput.text.trim())
                             }
@@ -173,6 +157,7 @@ ApplicationWindow {
             Layout.alignment: Qt.AlignRight
             Layout.preferredWidth: 150
             enabled: readyToGo
+            highlighted: true
             
             onClicked: {
                 setupManager.save_token(tokenInput.text.trim())

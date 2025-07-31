@@ -1,18 +1,22 @@
 import QtQuick
-import QtQuick.Window
-import QtQuick.Controls.FluentWinUI3
 import QtQuick.Layouts
+import QtQuick.Controls.Material
 import QtCore
+import "."
 
 ApplicationWindow {
     id: exclusionDialog
     title: "User Exclusion List"
     width: 500
-    height: minimumHeight
+    height: lyt.implicitHeight + 60
     minimumWidth: 400
-    minimumHeight: mainLyt.implicitHeight + 40
+    minimumHeight: lyt.implicitHeight + 60
     flags: Qt.Dialog
     modality: Qt.ApplicationModal
+    Material.theme: YxobSettings.darkMode ? Material.Dark : Material.Light
+    Material.accent: Colors.accentColor
+    Material.primary: Colors.primaryColor
+    color: Colors.backgroundColor
     
     Settings {
         id: settings
@@ -22,48 +26,52 @@ ApplicationWindow {
     property string currentExcludedUsers: settings.excludedUsers
     
     ColumnLayout {
-        id: mainLyt
+        id: lyt
         anchors.fill: parent
         anchors.margins: 20
         spacing: 15
         
-        ColumnLayout {
+        Pane {
             Layout.fillWidth: true
-            spacing: 10
+            Material.background: Colors.paneColor
+            Material.elevation: 6
+            Material.roundedScale: Material.ExtraSmallScale
             
-            Label {
-                text: "Excluded Users"
-                font.pixelSize: 16
-                font.bold: true
-            }
-            
-            Label {
-                text: "Enter usernames separated by commas. These users will not be recorded."
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                font.pixelSize: 12
-                opacity: 0.8
-            }
-            
-            Label {
-                text: "Example: user1, user2, user3"
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                opacity: 0.5
-                font.pixelSize: 11
-                font.italic: true
-            }
-        }
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 10
                 
-        TextField {
-            Layout.fillWidth: true
-            id: excludedUsersInput
-            text: currentExcludedUsers
-            placeholderText: "Enter usernames separated by commas..."
-            //wrapMode: TextArea.Wrap
-            selectByMouse: true
-            color: "#ffffff"
-            placeholderTextColor: "#999"
+                Label {
+                    text: "Excluded Users"
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+                
+                Label {
+                    text: "Enter usernames separated by commas. These users will not be recorded."
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    color: Material.hintTextColor
+                }
+                
+                Label {
+                    text: "Example: user1, user2, user3"
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: Material.hintTextColor
+                    font.pixelSize: 11
+                    font.italic: true
+                }
+                        
+                TextField {
+                    Layout.fillWidth: true
+                    id: excludedUsersInput
+                    text: currentExcludedUsers
+                    placeholderText: "Enter usernames separated by commas..."
+                    selectByMouse: true
+                }
+            }
         }
             
         RowLayout {

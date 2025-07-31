@@ -7,6 +7,7 @@ from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from discord_recorder import DiscordRecorder
 from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel
 from setup_manager import SetupManager
+import rc_main
 
 
 def main():

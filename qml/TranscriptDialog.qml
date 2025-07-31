@@ -1,7 +1,7 @@
 import QtQuick 
-import QtQuick.Window 
-import QtQuick.Controls.FluentWinUI3
-import QtQuick.Layouts 
+import QtQuick.Layouts
+import QtQuick.Controls.Material
+import "."
 
 ApplicationWindow {
     id: transcriptDialog
@@ -12,6 +12,10 @@ ApplicationWindow {
     minimumHeight: 500
     flags: Qt.Dialog
     modality: Qt.ApplicationModal
+    Material.theme: YxobSettings.darkMode ? Material.Dark : Material.Light
+    Material.accent: Colors.accentColor
+    Material.primary: Colors.primaryColor
+    color: Colors.backgroundColor
         
     onVisibleChanged: {
         if (recorder && visible) {
@@ -19,41 +23,6 @@ ApplicationWindow {
             recorder.refreshRecordings()
         }
     }
-    
-    SystemPalette {
-        id: systemPalette
-        colorGroup: SystemPalette.Active
-    }
-
-    readonly property bool isDarkMode: {
-        // Method 1: Qt 6.5+ color scheme detection
-        if (typeof Qt.styleHints !== 'undefined' && Qt.styleHints.colorScheme !== undefined) {
-            return Qt.styleHints.colorScheme === Qt.Dark
-        }
-
-        // Method 2: Fallback - check if window background is darker than text
-        const windowColor = systemPalette.window
-        const textColor = systemPalette.windowText
-
-        // Calculate luminance of window background
-        const r = ((windowColor.r * 255) * 0.299)
-        const g = ((windowColor.g * 255) * 0.587)
-        const b = ((windowColor.b * 255) * 0.114)
-        const luminance = (r + g + b) / 255
-
-        return luminance < 0.5 // Dark if luminance is less than 50%
-    }
-
-    readonly property color surfaceColor: isDarkMode ? "#2b2b2b" : "#ffffff"
-    readonly property color headerColor: isDarkMode ? "#3a3a3a" : "#cccccc"
-    readonly property color headerBorderColor: isDarkMode ? "#2b2b2b" : "#cccccc"
-    readonly property color borderColor: isDarkMode ? "#444444" : "#cccccc"
-    readonly property color primaryTextColor: isDarkMode ? "#ffffff" : "#000000"
-    readonly property color secondaryTextColor: isDarkMode ? "#999999" : "#666666"
-    readonly property color tertiaryTextColor: isDarkMode ? "#cccccc" : "#888888"
-    readonly property color hoverColor: isDarkMode ? "#404040" : "#f0f0f0"
-    readonly property color statusBorderColor: isDarkMode ? "#666666" : "#999999"
-    readonly property color placeholderTextColor: isDarkMode ? "#888888" : "#999999"
 
     ColumnLayout {
         anchors.fill: parent
@@ -116,41 +85,39 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     font.pixelSize: 14
                     font.bold: true
-                    color: primaryTextColor
                 }
                 
                 Label {
                     text: "This may take several minutes depending on file size and length..."
                     Layout.fillWidth: true
                     font.pixelSize: 12
-                    color: secondaryTextColor
+                    color: Material.hintTextColor
                     visible: recorder ? recorder.isTranscribing : false
                 }
             }
         }
         
-        Rectangle {
+        Pane {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: transcriptDialog.surfaceColor
-            radius: 8
-            border.color: transcriptDialog.borderColor
-            border.width: 1
+            Material.background: Colors.paneColor
+            Material.elevation: 6
+            Material.roundedScale: Material.ExtraSmallScale
             
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 10
                 spacing: 0
                 
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
-                    height: 35
-                    color: transcriptDialog.headerColor
-                    radius: 4
+                    Layout.preferredHeight: 35
+                    Material.background: Qt.darker(Colors.paneColor, 1.1)
+                    Material.elevation: 2
+                    Material.roundedScale: Material.ExtraSmallScale
                     
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
                         spacing: 10
                         
                         Label {
@@ -158,7 +125,6 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             Layout.preferredWidth: 60
-                            color: primaryTextColor
                         }
                         
                         Label {
@@ -166,7 +132,6 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             Layout.fillWidth: true
-                            color: primaryTextColor
                         }
                         
                         Label {
@@ -174,8 +139,6 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             Layout.preferredWidth: 45
-                            color: primaryTextColor
-
                         }
                         
                         Label {
@@ -183,8 +146,7 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             Layout.preferredWidth: 60
-                            Layout.rightMargin: - 15
-                            color: primaryTextColor
+                            Layout.rightMargin: -15
                         }
                     }
                 }
@@ -204,35 +166,29 @@ ApplicationWindow {
                         visible: recordingsList.count === 0 && recorder && recorder.recordingsModel
                         horizontalAlignment: Text.AlignHCenter
                         font.pixelSize: 14
-                        color: placeholderTextColor
+                        color: Material.hintTextColor
                     }
 
-                    delegate: Rectangle {
+                    delegate: ItemDelegate {
                         width: recordingsList.width
                         height: 50
-                        color: mouseArea.containsMouse ? transcriptDialog.hoverColor : "transparent"
-                        radius: 4
                         
-                        MouseArea {
-                            id: mouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: {
-                                if (recorder) {
-                                    let currentSelected = selected || false
-                                    recorder.setRecordingSelected(index, !currentSelected)
-                                }
+                        onClicked: {
+                            if (recorder) {
+                                let currentSelected = selected || false
+                                recorder.setRecordingSelected(index, !currentSelected)
                             }
                         }
                         
                         RowLayout {
                             anchors.fill: parent
-                            anchors.margins: 10
+                            //anchors.margins: 10
+                            anchors.rightMargin: 10
                             spacing: 10
                             
                             CheckBox {
                                 Layout.preferredWidth: 60
-                                Layout.leftMargin: - 10
+                                Layout.leftMargin: -10
                                 Layout.rightMargin: 10
                                 checked: selected || false
                                 onToggled: {
@@ -247,7 +203,6 @@ ApplicationWindow {
                                 spacing: 2
 
                                 Label {
-                                    
                                     text: {
                                         if (!name) return ""
                                         let filename = name.toString()
@@ -263,7 +218,6 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     font.pixelSize: 13
                                     elide: Text.ElideRight
-                                    color: primaryTextColor
                                 }
 
                                 RowLayout {
@@ -274,7 +228,7 @@ ApplicationWindow {
                                         text: name || "Unknown"
                                         Layout.fillWidth: true
                                         font.pixelSize: 10
-                                        color: secondaryTextColor
+                                        color: Material.hintTextColor
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -284,23 +238,23 @@ ApplicationWindow {
                                 text: size || ""
                                 Layout.preferredWidth: 80
                                 font.pixelSize: 12
-                                color: tertiaryTextColor
+                                color: Material.hintTextColor
                                 horizontalAlignment: Text.AlignRight
                             }
                             
                             Rectangle {
                                 Layout.preferredWidth: 60
                                 height: 20
-                                color: hasTranscript ? "#4CAF50" : "transparent"
+                                color: hasTranscript ? Material.accent : "transparent"
                                 radius: 10
-                                border.color: hasTranscript ? "#4CAF50" : statusBorderColor
+                                border.color: hasTranscript ? Material.accent : Material.hintTextColor
                                 border.width: 1
                                 
                                 Label {
                                     anchors.centerIn: parent
                                     text: hasTranscript ? "Done" : "Pending"
                                     font.pixelSize: 9
-                                    color: hasTranscript ? "white" : secondaryTextColor
+                                    color: hasTranscript ? "white" : Material.hintTextColor
                                     font.bold: hasTranscript
                                 }
                             }
@@ -322,6 +276,8 @@ ApplicationWindow {
             Button {
                 text: "Open Recordings Folder"
                 icon.source: "icons/folder.png"
+                icon.height: 14
+                icon.width: 14
                 onClicked: {
                     if (recorder) {
                         recorder.openRecordingsFolder()
@@ -333,7 +289,6 @@ ApplicationWindow {
                         
             Button {
                 text: "Launch Summarizer"
-                icon.source: "icons/folder.png"
                 enabled: recorder ? !recorder.isTranscribing : false
                 onClicked: {
                     if (recorder) {
@@ -347,6 +302,8 @@ ApplicationWindow {
             Button {
                 text: "Start Transcription"
                 icon.source: "icons/transcript.png"
+                icon.height: 14
+                icon.width: 14
                 enabled: recorder ? (recorder.hasSelectedRecordings && !recorder.isTranscribing) : false
                 highlighted: true
                 onClicked: {
