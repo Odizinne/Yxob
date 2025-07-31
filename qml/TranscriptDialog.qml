@@ -183,6 +183,7 @@ ApplicationWindow {
                         RowLayout {
                             anchors.fill: parent
                             //anchors.margins: 10
+                            anchors.leftMargin: 5
                             anchors.rightMargin: 10
                             spacing: 10
                             
@@ -199,6 +200,7 @@ ApplicationWindow {
                             }
                             
                             ColumnLayout {
+                                Layout.leftMargin: 5
                                 Layout.fillWidth: true
                                 spacing: 2
 
