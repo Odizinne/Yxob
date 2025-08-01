@@ -8,6 +8,12 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QDebug>
+#include <QProcess>
+#include <QThread>
+#include <QMessageBox>
+#include <QStandardPaths>
+#include <QDir>
+#include <QCoreApplication>
 #include "sessionmanager.h"
 
 bool checkOllamaAvailable()
@@ -60,6 +66,88 @@ bool checkOllamaAvailable()
     return available;
 }
 
+#ifndef Q_OS_WIN
+bool isOllamaInstalled()
+{
+    QProcess checkProcess;
+    checkProcess.start("which", QStringList() << "ollama");
+    checkProcess.waitForFinished(3000);
+
+    bool installed = (checkProcess.exitCode() == 0);
+    qDebug() << "Ollama installed:" << installed;
+
+    if (installed) {
+        QString output = checkProcess.readAllStandardOutput().trimmed();
+        qDebug() << "Ollama found at:" << output;
+    }
+
+    return installed;
+}
+
+bool tryStartOllama()
+{
+    qDebug() << "Attempting to start Ollama...";
+
+    // First check if it's installed
+    if (!isOllamaInstalled()) {
+        qDebug() << "Ollama is not installed";
+        return false;
+    }
+
+    // Try to start ollama serve in the background
+    QProcess* ollamaProcess = new QProcess();
+
+    // Set up the process to run detached so it continues after our app closes
+    QStringList arguments;
+    arguments << "serve";
+
+    // Try to start the process
+    bool started = ollamaProcess->startDetached("ollama", arguments);
+
+    if (!started) {
+        qDebug() << "Failed to start ollama serve";
+        ollamaProcess->deleteLater();
+        return false;
+    }
+
+    qDebug() << "Started ollama serve, waiting for it to be ready...";
+    ollamaProcess->deleteLater();
+
+    // Wait for the service to start up and be available
+    for (int i = 0; i < 10; ++i) {
+        QThread::msleep(1000); // Wait 1 second
+        QCoreApplication::processEvents(); // Keep UI responsive
+
+        if (checkOllamaAvailable()) {
+            qDebug() << "Ollama is now running after" << (i + 1) << "seconds";
+            return true;
+        }
+    }
+
+    qDebug() << "Ollama failed to start within 10 seconds";
+    return false;
+}
+
+void showLinuxOllamaHelp()
+{
+    QString message;
+
+    if (isOllamaInstalled()) {
+        message = "Ollama is installed but couldn't be started automatically.\n\n"
+                  "Please open a terminal and run:\n"
+                  "ollama serve\n\n"
+                  "Keep the terminal open and restart this application.";
+    } else {
+        message = "Ollama is not installed.\n\n"
+                  "Please install it first:\n"
+                  "curl -fsSL https://ollama.ai/install.sh | sh\n\n"
+                  "Then restart this application.";
+    }
+
+    QMessageBox::information(nullptr, "Ollama Required", message);
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     qputenv("QT_QUICK_CONTROLS_MATERIAL_VARIANT", "Dense");
@@ -73,6 +161,14 @@ int main(int argc, char *argv[])
     // Check if Ollama is available
     bool ollamaAvailable = checkOllamaAvailable();
 
+#ifndef Q_OS_WIN
+    // On Linux, if Ollama isn't running, try to start it
+    if (!ollamaAvailable) {
+        qDebug() << "Ollama not running on Linux, attempting to start it...";
+        ollamaAvailable = tryStartOllama();
+    }
+#endif
+
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,
@@ -85,7 +181,7 @@ int main(int argc, char *argv[])
         engine.loadFromModule("Odizinne.DNDSummarizer", "Main");
     } else {
 #ifdef Q_OS_WIN
-        qDebug() << "Loading OllamaSetup interface - Ollama not detected";
+        qDebug() << "Loading OllamaSetup interface - Ollama not detected on Windows";
         // Load setup window instead
         engine.loadFromModule("Odizinne.DNDSummarizer", "OllamaSetup");
         // Connect to SessionManager's signal instead of trying to connect to QML object
@@ -96,7 +192,8 @@ int main(int argc, char *argv[])
             engine.loadFromModule("Odizinne.DNDSummarizer", "Main");
         });
 #else
-        qDebug() << "Ollama could not be found in path";
+        qDebug() << "Could not get Ollama running on Linux";
+        showLinuxOllamaHelp();
         return -1;
 #endif
     }
