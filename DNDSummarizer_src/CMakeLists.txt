@@ -51,10 +51,6 @@ qt_add_qml_module(DNDSummarizer
     QML_FILES qml/OllamaSetup.qml
 )
 
-if(NOT WIN32 AND NOT APPLE)
-    set_property(TARGET DNDSummarizer PROPERTY OUTPUT_NAME DNDSummarizer_app)
-endif()
-
 target_include_directories(DNDSummarizer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
