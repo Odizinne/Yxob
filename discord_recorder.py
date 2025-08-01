@@ -1,6 +1,7 @@
 import os
 import asyncio
 import discord
+import platform
 from discord.ext import commands
 from discord.ext import voice_recv
 from PySide6.QtCore import (
@@ -118,7 +119,8 @@ class DiscordRecorder(QObject):
         try:
             import os
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            summarizer_path = os.path.join(script_dir, "summarizer", "bin", "DNDSummarizer.exe")
+            exe_name = "DNDSummarizer.exe" if platform.system() == "Windows" else "DNDSummarizer"
+            summarizer_path = os.path.join(script_dir, "summarizer", "bin", exe_name)
 
             if not os.path.exists(summarizer_path):
                 print(f"Summarizer not found at: {summarizer_path}")
