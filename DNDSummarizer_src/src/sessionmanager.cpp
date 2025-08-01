@@ -43,23 +43,17 @@ SessionManager::SessionManager(QObject *parent)
 {
     m_yxobPath = getYxobDataPath();
 
-    // Set up file model columns
     m_fileModel->setHorizontalHeaderLabels({"File", "Selected"});
-
-    // Initialize prompts with defaults
     m_chunkPrompt = getDefaultChunkPrompt();
     m_finalPrompt = getDefaultFinalPrompt();
 
-    // Connect summarizer signals
     connect(m_summarizer, &DnDSummarizer::summaryReady, this, &SessionManager::onSummaryFinished);
     connect(m_summarizer, &DnDSummarizer::errorOccurred, this, &SessionManager::onSummaryError);
     connect(m_summarizer, &DnDSummarizer::progressUpdated, this, &SessionManager::setProcessingStatus);
 
-    // Set up connection timer
     m_connectionTimer->setInterval(5000); // Check every 5 seconds
     connect(m_connectionTimer, &QTimer::timeout, this, &SessionManager::checkOllamaConnection);
 
-    // Initial setup
     refreshFolders();
     checkOllamaConnection();
     m_connectionTimer->start();
@@ -67,17 +61,14 @@ SessionManager::SessionManager(QObject *parent)
 
 QString SessionManager::getYxobDataPath() const
 {
-    // Use environment variable %APPDATA% (Windows Roaming)
     QString roamingPath = qEnvironmentVariable("APPDATA");
     if (roamingPath.isEmpty()) {
-        // Fallback: construct manually
         QString homePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
         roamingPath = homePath + "/AppData/Roaming";
     }
 
     qDebug() << "Roaming path:" << roamingPath;
 
-    // Build the correct path: %APPDATA%/Odizinne/Yxob
     QString yxobPath = roamingPath + "/Odizinne/Yxob";
     qDebug() << "Target Yxob path:" << yxobPath;
 
@@ -172,7 +163,7 @@ void SessionManager::refreshFolders()
         }
     }
 
-    std::sort(folders.begin(), folders.end(), std::greater<QString>()); // Most recent first
+    std::sort(folders.begin(), folders.end(), std::greater<QString>());
     m_folderModel->setStringList(folders);
 
     if (!folders.isEmpty() && m_currentFolder.isEmpty()) {
@@ -218,7 +209,6 @@ void SessionManager::refreshFiles()
         return;
     }
 
-    // Look in the transcripts subfolder
     QString folderPath = m_yxobPath + "/" + m_currentFolder + "/transcripts";
     qDebug() << "Looking for files in transcripts folder:" << folderPath;
 
@@ -226,7 +216,6 @@ void SessionManager::refreshFiles()
     if (!transcriptsDir.exists()) {
         qDebug() << "Transcripts folder does not exist:" << folderPath;
 
-        // Also check if there are files in the root date folder (fallback)
         QString rootFolderPath = m_yxobPath + "/" + m_currentFolder;
         QDir rootDir(rootFolderPath);
         if (rootDir.exists()) {
@@ -270,7 +259,6 @@ void SessionManager::toggleFileSelection(int index)
         return;
     }
 
-    // Get the model index for the checkbox column (column 1)
     QModelIndex checkboxIndex = m_fileModel->index(index, 1);
     QModelIndex nameIndex = m_fileModel->index(index, 0);
 
@@ -279,15 +267,12 @@ void SessionManager::toggleFileSelection(int index)
         return;
     }
 
-    // Get current check state
     QVariant currentState = m_fileModel->data(checkboxIndex, Qt::CheckStateRole);
     bool isChecked = (currentState.toInt() == Qt::Checked);
 
-    // Toggle the state
     Qt::CheckState newState = isChecked ? Qt::Unchecked : Qt::Checked;
     m_fileModel->setData(checkboxIndex, newState, Qt::CheckStateRole);
 
-    // Update selected files list
     QString fileName = m_fileModel->data(nameIndex, Qt::DisplayRole).toString();
     qDebug() << "Toggling file:" << fileName << "New state:" << (newState == Qt::Checked ? "checked" : "unchecked");
 
@@ -341,10 +326,8 @@ void SessionManager::onOllamaCheckFinished()
     bool connected = (reply->error() == QNetworkReply::NoError);
     setOllamaConnected(connected);
 
-    // Don't update status if we're currently processing
     if (!m_isProcessing) {
         if (connected) {
-            // Check if our model is available
             QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             QJsonArray models = doc.object()["models"].toArray();
 
@@ -404,13 +387,10 @@ void SessionManager::onModelListFinished()
     }
 
     if (modelFound) {
-        // Model exists, proceed to summarization
         setProcessingStatus("Summarizing...");
-        // Pass the custom prompts to the summarizer
         m_summarizer->setCustomPrompts(m_chunkPrompt, m_finalPrompt);
         m_summarizer->summarizeFiles(getSelectedFilePaths());
     } else {
-        // Pull the model first
         setProcessingStatus("Downloading model...");
 
         QJsonObject pullRequest;
@@ -436,7 +416,6 @@ void SessionManager::onModelPullFinished()
         setIsProcessing(false);
     } else {
         setProcessingStatus("Summarizing...");
-        // Pass the custom prompts to the summarizer
         m_summarizer->setCustomPrompts(m_chunkPrompt, m_finalPrompt);
         m_summarizer->summarizeFiles(getSelectedFilePaths());
     }
@@ -488,11 +467,6 @@ void SessionManager::onSummaryError(const QString &error)
     setIsProcessing(false);
     setProcessingStatus("Error");
     emit errorOccurred(error);
-}
-
-void SessionManager::saveNarrative(const QString &filePath)
-{
-    // Legacy method - not used anymore
 }
 
 void SessionManager::setProcessingStatus(const QString &status)

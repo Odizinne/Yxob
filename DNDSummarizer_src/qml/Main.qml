@@ -26,7 +26,6 @@ ApplicationWindow {
         anchors.margins: 20
         spacing: 20
 
-        // Folder selection and settings
         Pane {
             Layout.fillWidth: true
             Material.background: Colors.paneColor
@@ -37,86 +36,85 @@ ApplicationWindow {
                 anchors.fill: parent
                 spacing: 20
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 15
-
-                Item {
+                RowLayout {
                     Layout.fillWidth: true
+                    spacing: 15
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 12
+                        Layout.preferredHeight: 12
+                        radius: 6
+                        color: SessionManager.ollamaConnected ? Material.accent : "#f44336"
+                    }
+
+                    Label {
+                        text: "D&D Session Summarizer"
+                        font.pixelSize: 20
+                        font.bold: true
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
                 }
 
-                Rectangle {
-                    Layout.preferredWidth: 12
-                    Layout.preferredHeight: 12
-                    radius: 6
-                    color: SessionManager.ollamaConnected ? Material.accent : "#f44336"
-                }
-
-                Label {
-                    text: "D&D Session Summarizer"
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-
-                Item {
+                RowLayout {
                     Layout.fillWidth: true
-                }
-            }
+                    spacing: 10
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
+                    Label {
+                        text: "Session folder:"
+                        font.pixelSize: 14
+                    }
 
-                Label {
-                    text: "Session folder:"
-                    font.pixelSize: 14
-                }
+                    ComboBox {
+                        Layout.fillWidth: true
+                        model: SessionManager.folderModel
+                        textRole: "display"
 
-                ComboBox {
-                    Layout.fillWidth: true
-                    model: SessionManager.folderModel
-                    textRole: "display"
+                        currentIndex: {
+                            if (!SessionManager.folderModel || !SessionManager.currentFolder) {
+                                return -1
+                            }
 
-                    currentIndex: {
-                        if (!SessionManager.folderModel || !SessionManager.currentFolder) {
+                            for (let i = 0; i < SessionManager.folderModel.rowCount(); i++) {
+                                let modelIndex = SessionManager.folderModel.index(i, 0)
+                                let folderName = SessionManager.folderModel.data(modelIndex, Qt.DisplayRole)
+                                if (folderName === SessionManager.currentFolder) {
+                                    return i
+                                }
+                            }
                             return -1
                         }
 
-                        for (let i = 0; i < SessionManager.folderModel.rowCount(); i++) {
-                            let modelIndex = SessionManager.folderModel.index(i, 0)
-                            let folderName = SessionManager.folderModel.data(modelIndex, Qt.DisplayRole)
-                            if (folderName === SessionManager.currentFolder) {
-                                return i
+                        onActivated: function(index) {
+                            console.log("ComboBox activated with index:", index)
+                            if (index >= 0) {
+                                let modelIndex = SessionManager.folderModel.index(index, 0)
+                                let folderName = SessionManager.folderModel.data(modelIndex, Qt.DisplayRole)
+                                console.log("Setting current folder to:", folderName)
+                                SessionManager.currentFolder = folderName
                             }
                         }
-                        return -1
                     }
 
-                    onActivated: function(index) {
-                        console.log("ComboBox activated with index:", index)
-                        if (index >= 0) {
-                            let modelIndex = SessionManager.folderModel.index(index, 0)
-                            let folderName = SessionManager.folderModel.data(modelIndex, Qt.DisplayRole)
-                            console.log("Setting current folder to:", folderName)
-                            SessionManager.currentFolder = folderName
-                        }
+                    Button {
+                        text: "Refresh"
+                        onClicked: SessionManager.refreshFolders()
                     }
-                }
 
-                Button {
-                    text: "Refresh"
-                    onClicked: SessionManager.refreshFolders()
-                }
-
-                Button {
-                    text: "Settings"
-                    onClicked: settingsDialog.show()
+                    Button {
+                        text: "Settings"
+                        onClicked: settingsDialog.show()
+                    }
                 }
             }
         }
-        }
 
-        // File selection
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -204,7 +202,6 @@ ApplicationWindow {
             }
         }
 
-        // Summary controls
         Pane {
             Layout.fillWidth: true
             Material.background: Colors.paneColor
@@ -235,7 +232,6 @@ ApplicationWindow {
             }
         }
 
-        // Progress indicator
         Pane {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
@@ -279,7 +275,6 @@ ApplicationWindow {
             anchors.margins: 20
             spacing: 15
 
-            // Header with reset button
             RowLayout {
                 Layout.fillWidth: true
 
@@ -297,7 +292,6 @@ ApplicationWindow {
                 }
             }
 
-            // Chunk Prompt Section
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -339,7 +333,6 @@ ApplicationWindow {
                 }
             }
 
-            // Final Prompt Section
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -381,7 +374,6 @@ ApplicationWindow {
                 }
             }
 
-            // Dialog buttons
             RowLayout {
                 Layout.fillWidth: true
 
@@ -395,7 +387,6 @@ ApplicationWindow {
         }
     }
 
-    // Connections (unchanged)
     Connections {
         target: SessionManager
 
@@ -411,7 +402,6 @@ ApplicationWindow {
         }
     }
 
-    // Save dialog
     FileDialog {
         id: saveDialog
         title: "Save Session Summary"
@@ -424,7 +414,6 @@ ApplicationWindow {
         }
     }
 
-    // Error dialog
     MessageDialog {
         id: errorDialog
         title: "Error"

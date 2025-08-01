@@ -28,7 +28,6 @@ void DnDSummarizer::summarizeFiles(const QStringList &filePaths)
         return;
     }
 
-    // Reset state
     m_chunkSummaries.clear();
     m_remainingChunks.clear();
     m_currentChunk = 0;
@@ -36,7 +35,6 @@ void DnDSummarizer::summarizeFiles(const QStringList &filePaths)
 
     emit progressUpdated("Summarizing... You can go grab a coffee or two");
 
-    // Combine all transcript files
     QString combinedText = m_textProcessor->combineTranscripts(filePaths);
 
     if (combinedText.isEmpty()) {
@@ -46,7 +44,6 @@ void DnDSummarizer::summarizeFiles(const QStringList &filePaths)
 
     emit progressUpdated("Summarizing... You can go grab a coffee or two");
 
-    // Create chunks
     QStringList chunks = m_textProcessor->createChunks(combinedText, 2000);
     m_remainingChunks = chunks;
     m_totalChunks = chunks.size();
@@ -58,14 +55,12 @@ void DnDSummarizer::summarizeFiles(const QStringList &filePaths)
 
     emit progressUpdated("Summarizing... You can go grab a coffee or two");
 
-    // Start processing chunks
     processNextChunk();
 }
 
 void DnDSummarizer::processNextChunk()
 {
     if (m_remainingChunks.isEmpty()) {
-        // All chunks processed, create final summary
         if (m_chunkSummaries.size() > 1) {
             emit progressUpdated("Summarizing... You can go grab a coffee or two");
 
@@ -90,7 +85,6 @@ void DnDSummarizer::processNextChunk()
             connect(reply, &QNetworkReply::finished, this, &DnDSummarizer::onSummaryRequestFinished);
 
         } else if (m_chunkSummaries.size() == 1) {
-            // Only one chunk, use it as final summary
             emit summaryReady(m_chunkSummaries.first());
         } else {
             emit errorOccurred("No summary generated");
@@ -98,7 +92,6 @@ void DnDSummarizer::processNextChunk()
         return;
     }
 
-    // Process next chunk
     QString currentChunkText = m_remainingChunks.takeFirst();
     m_currentChunk++;
 
@@ -111,8 +104,9 @@ void DnDSummarizer::processNextChunk()
     requestData["prompt"] = prompt;
     requestData["stream"] = false;
 
+    // I must say i have no idea
     QJsonObject options;
-    options["temperature"] = 0.4; // Slightly higher for creative narrative
+    options["temperature"] = 0.4;
     options["top_k"] = 40;
     options["top_p"] = 0.9;
     requestData["options"] = options;
@@ -154,10 +148,8 @@ void DnDSummarizer::onSummaryRequestFinished()
     }
 
     if (m_remainingChunks.isEmpty() && m_chunkSummaries.size() > 0) {
-        // This was the final summary request
         emit summaryReady(summary);
     } else {
-        // This was a chunk summary, store it and continue
         m_chunkSummaries.append(summary);
         processNextChunk();
     }
@@ -173,7 +165,6 @@ QString DnDSummarizer::createPrompt(const QString &text, bool isFinalSummary)
         promptTemplate = m_customChunkPrompt.isEmpty() ? getDefaultChunkPrompt() : m_customChunkPrompt;
     }
 
-    // Replace {TEXT} placeholder with actual text
     return promptTemplate.replace("{TEXT}", text);
 }
 

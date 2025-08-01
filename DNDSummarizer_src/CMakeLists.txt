@@ -22,8 +22,7 @@ set(HEADERS
     include/textprocessor.h
 )
 
-# Create executable with sources and headers
-qt_add_executable(DNDSummarizer WIN32 MACOSX_BUNDLE
+qt_add_executable(DNDSummarizer WIN32
     ${SOURCES}
     ${HEADERS}
     win/appicon.rc
@@ -43,14 +42,12 @@ set_source_files_properties(${QML_SINGLETONS}
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE
 )
 
-# Create QML module - ONLY QML files, no C++ sources
 qt_add_qml_module(DNDSummarizer
     URI Odizinne.DNDSummarizer
     VERSION 1.0
     QML_FILES ${QML_FILES} ${QML_SINGLETONS}
 )
 
-# Avoid collision between executable name and QML module directory (QTBUG-98568)
 if(NOT WIN32 AND NOT APPLE)
     set_property(TARGET DNDSummarizer PROPERTY OUTPUT_NAME DNDSummarizer_app)
 endif()
