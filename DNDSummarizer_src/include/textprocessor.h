@@ -5,9 +5,6 @@
 #include <QStringList>
 
 struct TranscriptEntry {
-    int startSeconds;
-    QString startTime;
-    QString endTime;
     QString participant;
     QString text;
 };
@@ -25,6 +22,5 @@ public:
 
 private:
     QList<TranscriptEntry> parseTranscriptFile(const QString &filePath);
-    int timestampToSeconds(const QString &timestamp);
     QStringList splitIntoSentences(const QString &text);
 };

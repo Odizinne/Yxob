@@ -33,17 +33,11 @@ QString TextProcessor::combineTranscripts(const QStringList &filePaths)
         }
     }
 
-    std::sort(allEntries.begin(), allEntries.end(),
-              [](const TranscriptEntry &a, const TranscriptEntry &b) {
-                  return a.startSeconds < b.startSeconds;
-              });
-
     QString combined = QString("Session D&D avec %1\n").arg(participants.join(", "));
     combined += QString("=").repeated(50) + "\n\n";
 
     for (const auto &entry : allEntries) {
-        combined += QString("[%1 -> %2] %3: %4\n\n")
-        .arg(entry.startTime, entry.endTime, entry.participant, entry.text);
+        combined += QString("%1: %2\n\n").arg(entry.participant, entry.text);
     }
 
     return combined;
@@ -62,40 +56,26 @@ QList<TranscriptEntry> TextProcessor::parseTranscriptFile(const QString &filePat
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);
     QString content = stream.readAll();
+    QStringList lines = content.split('\n');
+    bool foundSeparator = false;
 
-    QRegularExpression timestampRegex(R"(\[(\d{2}:\d{2}(?::\d{2})?)\s*->\s*(\d{2}:\d{2}(?::\d{2})?)\]\s*(.+?)(?=\n\[|\Z))",
-                                      QRegularExpression::DotMatchesEverythingOption);
+    for (const QString &line : lines) {
+        if (!foundSeparator) {
+            if (line.startsWith("=")) {
+                foundSeparator = true;
+            }
+            continue;
+        }
 
-    QRegularExpressionMatchIterator iterator = timestampRegex.globalMatch(content);
-
-    while (iterator.hasNext()) {
-        QRegularExpressionMatch match = iterator.next();
-
-        TranscriptEntry entry;
-        entry.startTime = match.captured(1);
-        entry.endTime = match.captured(2);
-        entry.text = match.captured(3).trimmed();
-        entry.startSeconds = timestampToSeconds(entry.startTime);
-
-        if (!entry.text.isEmpty()) {
+        QString trimmedLine = line.trimmed();
+        if (!trimmedLine.isEmpty()) {
+            TranscriptEntry entry;
+            entry.text = trimmedLine;
             entries.append(entry);
         }
     }
 
     return entries;
-}
-
-int TextProcessor::timestampToSeconds(const QString &timestamp)
-{
-    QStringList parts = timestamp.split(':');
-
-    if (parts.size() == 2) {
-        return parts[0].toInt() * 60 + parts[1].toInt();
-    } else if (parts.size() == 3) {
-        return parts[0].toInt() * 3600 + parts[1].toInt() * 60 + parts[2].toInt();
-    }
-
-    return 0;
 }
 
 QStringList TextProcessor::createChunks(const QString &text, int maxTokens)
