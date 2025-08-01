@@ -67,9 +67,7 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(":/icons/icon.png"));
     app.setOrganizationName("Odizinne");
     app.setApplicationName("DNDSummarizer");
-
     qmlRegisterUncreatableType<QAbstractItemModel>("QtQml", 2, 0, "QAbstractItemModel", "QAbstractItemModel is abstract");
-
     QQmlApplicationEngine engine;
 
     // Check if Ollama is available
@@ -86,17 +84,21 @@ int main(int argc, char *argv[])
         qDebug() << "Loading Main interface - Ollama is available";
         engine.loadFromModule("Odizinne.DNDSummarizer", "Main");
     } else {
+#ifdef Q_OS_WIN
         qDebug() << "Loading OllamaSetup interface - Ollama not detected";
         // Load setup window instead
         engine.loadFromModule("Odizinne.DNDSummarizer", "OllamaSetup");
-
         // Connect to SessionManager's signal instead of trying to connect to QML object
         SessionManager* sessionManager = SessionManager::instance();
-        QObject::connect(sessionManager, &SessionManager::ollamaInstallationDetected, [&engine]() {
+        QObject::connect(sessionManager, &SessionManager::ollamaInstallationDetected, &engine, [&engine]() {
             qDebug() << "Ollama installation detected, switching to Main interface";
             engine.clearComponentCache();
             engine.loadFromModule("Odizinne.DNDSummarizer", "Main");
         });
+#else
+        qDebug() << "Ollama could not be found in path";
+        return -1;
+#endif
     }
 
     return app.exec();
