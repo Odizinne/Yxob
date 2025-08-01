@@ -64,7 +64,6 @@ public slots:
     void checkOllamaConnection();
     void pullModelIfNeeded();
     void summarizeSelectedFiles();
-    void saveNarrative(const QString &filePath);
     void saveNarrativeToFile(const QUrl &fileUrl, const QString &summary);
     void toggleFileSelection(int index);
     void selectAllFiles(bool select);

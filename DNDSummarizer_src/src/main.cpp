@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QIcon>
+#include <QAbstractItemModel>
 
 int main(int argc, char *argv[])
 {
@@ -9,6 +10,8 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(":/icons/icon.png"));
     app.setOrganizationName("Odizinne");
     app.setApplicationName("DNDSummarizer");
+
+    qmlRegisterUncreatableType<QAbstractItemModel>("QtQml", 2, 0, "QAbstractItemModel", "QAbstractItemModel is abstract");
 
     QQmlApplicationEngine engine;
     QObject::connect(

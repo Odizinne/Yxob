@@ -1,9 +1,10 @@
+//pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import Odizinne.DNDSummarizer
-import "."
 
 ApplicationWindow {
     id: window
@@ -391,7 +392,7 @@ ApplicationWindow {
         target: SessionManager
 
         function onSummaryReady(summary) {
-            currentSummary = summary
+            window.currentSummary = summary
             saveDialog.selectedFile = SessionManager.getDefaultSaveFileName()
             saveDialog.open()
         }
@@ -410,7 +411,7 @@ ApplicationWindow {
         defaultSuffix: "txt"
 
         onAccepted: {
-            SessionManager.saveNarrativeToFile(selectedFile, currentSummary)
+            SessionManager.saveNarrativeToFile(selectedFile, window.currentSummary)
         }
     }
 

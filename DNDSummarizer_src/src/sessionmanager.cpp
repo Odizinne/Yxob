@@ -155,9 +155,10 @@ void SessionManager::refreshFolders()
     }
 
     QStringList folders;
-    QRegularExpression datePattern("^\\d{4}-\\d{2}-\\d{2}$");
+    static const QRegularExpression datePattern("^\\d{4}-\\d{2}-\\d{2}$");
 
-    for (const QString &folder : yxobDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+    QStringList folderList = yxobDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &folder : std::as_const(folderList)) {
         if (datePattern.match(folder).hasMatch()) {
             folders.append(folder);
         }
@@ -231,7 +232,7 @@ void SessionManager::refreshFiles()
     QStringList txtFiles = transcriptsDir.entryList({"*.txt"}, QDir::Files);
     qDebug() << "TXT files found in transcripts:" << txtFiles;
 
-    for (const QString &file : txtFiles) {
+    for (const QString &file : std::as_const(txtFiles)) {
         qDebug() << "Adding file to model:" << file;
 
         QList<QStandardItem*> row;
@@ -329,11 +330,13 @@ void SessionManager::onOllamaCheckFinished()
     if (!m_isProcessing) {
         if (connected) {
             QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            QJsonArray models = doc.object()["models"].toArray();
+            QJsonObject rootObject = doc.object();
+            QJsonArray models = rootObject["models"].toArray();
 
             bool modelFound = false;
-            for (const QJsonValue &model : models) {
-                if (model.toObject()["name"].toString() == m_ollamaModel) {
+            for (const QJsonValue &model : std::as_const(models)) {
+                QJsonObject modelObject = model.toObject();
+                if (modelObject["name"].toString() == m_ollamaModel) {
                     modelFound = true;
                     break;
                 }
@@ -376,11 +379,13 @@ void SessionManager::onModelListFinished()
     }
 
     QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-    QJsonArray models = doc.object()["models"].toArray();
+    QJsonObject rootObject = doc.object();
+    QJsonArray models = rootObject["models"].toArray();
 
     bool modelFound = false;
-    for (const QJsonValue &model : models) {
-        if (model.toObject()["name"].toString() == m_ollamaModel) {
+    for (const QJsonValue &model : std::as_const(models)) {
+        QJsonObject modelObject = model.toObject();
+        if (modelObject["name"].toString() == m_ollamaModel) {
             modelFound = true;
             break;
         }
@@ -431,7 +436,7 @@ QStringList SessionManager::getSelectedFilePaths() const
     qDebug() << "Getting selected file paths from:" << transcriptsFolderPath;
     qDebug() << "Selected files:" << m_selectedFiles;
 
-    for (const QString &fileName : m_selectedFiles) {
+    for (const QString &fileName : std::as_const(m_selectedFiles)) {
         QString fullPath = transcriptsFolderPath + "/" + fileName;
         filePaths.append(fullPath);
         qDebug() << "Added file path:" << fullPath;

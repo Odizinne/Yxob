@@ -15,7 +15,7 @@ QString TextProcessor::combineTranscripts(const QStringList &filePaths)
     QList<TranscriptEntry> allEntries;
     QStringList participants;
 
-    for (const QString &filePath : filePaths) {
+    for (const QString &filePath : std::as_const(filePaths)) {
         QList<TranscriptEntry> entries = parseTranscriptFile(filePath);
 
         QFileInfo fileInfo(filePath);
@@ -36,7 +36,7 @@ QString TextProcessor::combineTranscripts(const QStringList &filePaths)
     QString combined = QString("Session D&D avec %1\n").arg(participants.join(", "));
     combined += QString("=").repeated(50) + "\n\n";
 
-    for (const auto &entry : allEntries) {
+    for (const auto &entry : std::as_const(allEntries)) {
         combined += QString("%1: %2\n\n").arg(entry.participant, entry.text);
     }
 
@@ -59,7 +59,7 @@ QList<TranscriptEntry> TextProcessor::parseTranscriptFile(const QString &filePat
     QStringList lines = content.split('\n');
     bool foundSeparator = false;
 
-    for (const QString &line : lines) {
+    for (const QString &line : std::as_const(lines)) {
         if (!foundSeparator) {
             if (line.startsWith("=")) {
                 foundSeparator = true;
@@ -84,7 +84,7 @@ QStringList TextProcessor::createChunks(const QString &text, int maxTokens)
     QStringList chunks;
     QString currentChunk;
 
-    for (const QString &sentence : sentences) {
+    for (const QString &sentence : std::as_const(sentences)) {
         QString potentialChunk = currentChunk.isEmpty() ? sentence : currentChunk + " " + sentence;
 
         if (countTokens(potentialChunk) <= maxTokens) {
@@ -122,11 +122,11 @@ QStringList TextProcessor::createChunks(const QString &text, int maxTokens)
 
 QStringList TextProcessor::splitIntoSentences(const QString &text)
 {
-    QRegularExpression sentenceRegex(R"((?<=[.!?])\s+)");
+    static const QRegularExpression sentenceRegex(R"((?<=[.!?])\s+)");
     QStringList sentences = text.split(sentenceRegex, Qt::SkipEmptyParts);
 
     QStringList cleanSentences;
-    for (const QString &sentence : sentences) {
+    for (const QString &sentence : std::as_const(sentences)) {
         QString cleaned = sentence.trimmed();
         if (!cleaned.isEmpty()) {
             cleanSentences.append(cleaned);
