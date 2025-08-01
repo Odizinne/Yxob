@@ -17,7 +17,7 @@ from PySide6.QtCore import QProcess, Qt
 
 from audio_sink import SimpleRecordingSink
 from workers import AsyncWorker, TranscriptionWorker
-from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel
+from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel, DateFoldersListModel
 from setup_manager import SetupManager
 
 QML_IMPORT_NAME = "DiscordRecorder"
@@ -49,6 +49,7 @@ class DiscordRecorder(QObject):
     userStartedSpeaking = Signal(str)
     userStoppedSpeaking = Signal(str)
     pauseStateChanged = Signal(bool)
+    currentDateFolderChanged = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +72,8 @@ class DiscordRecorder(QObject):
         self._excluded_users = []
         self._pending_speaking_states = {}
         self._is_paused = False
+        self._date_folders_model = DateFoldersListModel()
+        self._current_date_folder = ""
 
         self._recordings_dir = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.AppDataLocation
@@ -89,6 +92,18 @@ class DiscordRecorder(QObject):
         
         # Load excluded users from settings@
         self._load_excluded_users()
+
+        self._date_folders_model.refresh_folders(self._recordings_dir)
+        
+        # Set initial date folder to the most recent one
+        if self._date_folders_model.rowCount() > 0:
+            first_index = self._date_folders_model.index(0, 0)
+            first_folder = self._date_folders_model.data(first_index, Qt.UserRole)
+            self._current_date_folder = first_folder
+        
+        # Load recordings for the selected folder
+        self._recordings_model.refresh_recordings(self._recordings_dir, self._current_date_folder)
+
 
     def _load_excluded_users(self):
         """Load excluded users from settings"""
@@ -198,6 +213,14 @@ class DiscordRecorder(QObject):
     def isPaused(self):
         return self._is_paused
 
+    @Property(DateFoldersListModel, constant=True)
+    def dateFoldersModel(self):
+        return self._date_folders_model
+
+    @Property(str, notify=currentDateFolderChanged)
+    def currentDateFolder(self):
+        return self._current_date_folder
+    
     # Setters
     def _set_status(self, status):
         if self._status != status:
@@ -284,6 +307,35 @@ class DiscordRecorder(QObject):
             self.channelsUpdated.emit()
 
     # File management
+    @Slot(str)
+    def setCurrentDateFolder(self, folder):
+        """Set the current date folder and refresh recordings"""
+        if self._current_date_folder != folder:
+            self._current_date_folder = folder
+            self.currentDateFolderChanged.emit(folder)
+            self._recordings_model.refresh_recordings(self._recordings_dir, folder)
+            self.hasSelectedRecordingsChanged.emit(self._recordings_model.has_selected())
+            print(f"Changed current date folder to: {folder}")
+
+    @Slot()
+    def refreshDateFolders(self):
+        """Refresh the date folders list"""
+        self._date_folders_model.refresh_folders(self._recordings_dir)
+        
+        # Reset to first folder if current one no longer exists
+        if self._date_folders_model.rowCount() > 0:
+            first_index = self._date_folders_model.index(0, 0)
+            first_folder = self._date_folders_model.data(first_index, Qt.UserRole)
+            if self._current_date_folder != first_folder:
+                self.setCurrentDateFolder(first_folder)
+
+    # Update the existing refreshRecordings method
+    @Slot()
+    def refreshRecordings(self):
+        """Refresh the recordings list for current date folder"""
+        self._recordings_model.refresh_recordings(self._recordings_dir, self._current_date_folder)
+        self.hasSelectedRecordingsChanged.emit(self._recordings_model.has_selected())
+
     @Slot()
     def openRecordingsFolder(self):
         """Open the recordings folder in the system file manager"""
@@ -293,12 +345,6 @@ class DiscordRecorder(QObject):
             print(f"Opened recordings folder: {self._recordings_dir}")
         else:
             print(f"Failed to open recordings folder: {self._recordings_dir}")
-
-    @Slot()
-    def refreshRecordings(self):
-        """Refresh the recordings list"""
-        self._recordings_model.refresh_recordings(self._recordings_dir)
-        self.hasSelectedRecordingsChanged.emit(self._recordings_model.has_selected())
 
     @Slot(int, bool)
     def setRecordingSelected(self, index, selected):

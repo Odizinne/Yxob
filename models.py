@@ -183,26 +183,30 @@ class RecordingsListModel(QAbstractListModel):
 
         return deleted_count
 
-    def refresh_recordings(self, base_recordings_dir):
-        """Scan all date folders for recordings"""
+    def refresh_recordings(self, base_recordings_dir, selected_date_folder=None):
+        """Scan specific date folder for recordings, or all if none specified"""
         self.beginResetModel()
         self._recordings.clear()
     
-        # Scan for date folders (YYYY-MM-DD format)
-        date_folders = []
-        if os.path.exists(base_recordings_dir):
-            for item in os.listdir(base_recordings_dir):
-                item_path = os.path.join(base_recordings_dir, item)
-                if os.path.isdir(item_path) and self._is_date_folder(item):
-                    date_folders.append(item)
-        
-        # Also check for any .wav files in the root (for backward compatibility)
-        root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
-        if root_wav_files:
-            date_folders.append("")  # Empty string represents root folder
-    
-        # Sort date folders (newest first)
-        date_folders.sort(reverse=True)
+        if selected_date_folder is not None:
+            # Refresh only the selected date folder
+            date_folders = [selected_date_folder]
+        else:
+            # Scan all date folders (original behavior)
+            date_folders = []
+            if os.path.exists(base_recordings_dir):
+                for item in os.listdir(base_recordings_dir):
+                    item_path = os.path.join(base_recordings_dir, item)
+                    if os.path.isdir(item_path) and self._is_date_folder(item):
+                        date_folders.append(item)
+            
+            # Also check for any .wav files in the root (for backward compatibility)
+            root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
+            if root_wav_files:
+                date_folders.append("")  # Empty string represents root folder
+            
+            # Sort date folders (newest first)
+            date_folders.sort(reverse=True)
     
         for date_folder in date_folders:
             if date_folder == "":
@@ -239,7 +243,8 @@ class RecordingsListModel(QAbstractListModel):
                 )
     
         self.endResetModel()
-        print(f"Refreshed recordings list: {len(self._recordings)} files found across {len(date_folders)} folders")
+        folder_desc = selected_date_folder if selected_date_folder else "all folders"
+        print(f"Refreshed recordings list for {folder_desc}: {len(self._recordings)} files found")
 
     def _is_date_folder(self, folder_name):
         """Check if folder name matches YYYY-MM-DD format"""
@@ -375,3 +380,76 @@ class UserListModel(QAbstractListModel):
             self.endResetModel()
         else:
             print("User list already empty")
+
+
+@QmlElement
+class DateFoldersListModel(QAbstractListModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._folders = []
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._folders)
+
+    def data(self, index, role):
+        if not index.isValid() or index.row() >= len(self._folders):
+            return None
+
+        folder = self._folders[index.row()]
+        if role == Qt.DisplayRole:
+            return folder["display_name"]
+        elif role == Qt.UserRole:
+            return folder["folder_name"]
+        return None
+
+    def roleNames(self):
+        return {Qt.DisplayRole: b"display", Qt.UserRole: b"folderName"}
+
+    def refresh_folders(self, base_recordings_dir):
+        """Scan for date folders"""
+        self.beginResetModel()
+        self._folders.clear()
+        
+        date_folders = []
+        if os.path.exists(base_recordings_dir):
+            for item in os.listdir(base_recordings_dir):
+                item_path = os.path.join(base_recordings_dir, item)
+                if os.path.isdir(item_path) and self._is_date_folder(item):
+                    date_folders.append(item)
+        
+        # Also check for any .wav files in the root (for backward compatibility)
+        root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
+        if root_wav_files:
+            date_folders.append("")  # Empty string represents root folder
+        
+        # Sort date folders (newest first)
+        date_folders.sort(reverse=True)
+        
+        for folder in date_folders:
+            if folder == "":
+                display_name = "Root (Legacy)"
+            else:
+                display_name = folder
+            
+            self._folders.append({
+                "folder_name": folder,
+                "display_name": display_name
+            })
+        
+        self.endResetModel()
+        print(f"Refreshed date folders: {len(self._folders)} folders found")
+
+    def _is_date_folder(self, folder_name):
+        """Check if folder name matches YYYY-MM-DD format"""
+        try:
+            datetime.strptime(folder_name, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
+
+    @Slot()
+    def clear_folders(self):
+        if len(self._folders) > 0:
+            self.beginResetModel()
+            self._folders.clear()
+            self.endResetModel()

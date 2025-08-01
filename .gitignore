@@ -1,2 +1,5 @@
 .venv/
 __pycache__/
+DNDSummarizer_src/build/
+DNDSummarizer_src/CMakeLists.txt.user
+DNDSummarizer_src/.qmlls.ini

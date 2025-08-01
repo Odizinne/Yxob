@@ -19,8 +19,8 @@ ApplicationWindow {
         
     onVisibleChanged: {
         if (recorder && visible) {
-            console.log("Refreshing recordings...")
-            recorder.refreshRecordings()
+            console.log("Refreshing date folders and recordings...")
+            recorder.refreshDateFolders()
         }
     }
 
@@ -28,6 +28,62 @@ ApplicationWindow {
         anchors.fill: parent
         anchors.margins: 12
         spacing: 15
+        
+        // Date folder selection
+        Pane {
+            Layout.fillWidth: true
+            Material.background: Colors.paneColor
+            Material.elevation: 6
+            Material.roundedScale: Material.ExtraSmallScale
+            
+            RowLayout {
+                anchors.fill: parent
+                spacing: 10
+                
+                Label {
+                    text: "Session date:"
+                    font.pixelSize: 14
+                }
+                
+                ComboBox {
+                    Layout.fillWidth: true
+                    model: recorder ? recorder.dateFoldersModel : null
+                    textRole: "display"
+                    
+                    currentIndex: {
+                        if (!recorder || !recorder.dateFoldersModel || !recorder.currentDateFolder) {
+                            return -1
+                        }
+                        
+                        for (let i = 0; i < recorder.dateFoldersModel.rowCount(); i++) {
+                            let modelIndex = recorder.dateFoldersModel.index(i, 0)
+                            let folderName = recorder.dateFoldersModel.data(modelIndex, Qt.UserRole)
+                            if (folderName === recorder.currentDateFolder) {
+                                return i
+                            }
+                        }
+                        return -1
+                    }
+                    
+                    onActivated: function(index) {
+                        if (recorder && index >= 0) {
+                            let modelIndex = recorder.dateFoldersModel.index(index, 0)
+                            let folderName = recorder.dateFoldersModel.data(modelIndex, Qt.UserRole)
+                            recorder.setCurrentDateFolder(folderName)
+                        }
+                    }
+                }
+                
+                Button {
+                    text: "Refresh"
+                    onClicked: {
+                        if (recorder) {
+                            recorder.refreshDateFolders()
+                        }
+                    }
+                }
+            }
+        }
         
         RowLayout {
             Layout.fillWidth: true
@@ -161,7 +217,12 @@ ApplicationWindow {
                     
                     Label {
                         anchors.centerIn: parent
-                        text: "No recordings found\n\nRecord some audio first, then return here to transcribe it."
+                        text: {
+                            if (!recorder || !recorder.currentDateFolder) {
+                                return "Select a session date to view recordings"
+                            }
+                            return "No recordings found for this date\n\nRecord some audio first, then return here to transcribe it."
+                        }
                         opacity: 0.8
                         visible: recordingsList.count === 0 && recorder && recorder.recordingsModel
                         horizontalAlignment: Text.AlignHCenter
@@ -182,7 +243,6 @@ ApplicationWindow {
                         
                         RowLayout {
                             anchors.fill: parent
-                            //anchors.margins: 10
                             anchors.leftMargin: 5
                             anchors.rightMargin: 10
                             spacing: 10

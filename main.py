@@ -1,11 +1,10 @@
 import sys
 import os
-from PySide6.QtCore import QStandardPaths
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
 import logging
 from discord_recorder import DiscordRecorder
-from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel
+from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel, DateFoldersListModel
 from setup_manager import SetupManager
 import rc_main
 
@@ -32,6 +31,7 @@ def main():
     qmlRegisterType(GuildsListModel, "DiscordRecorder", 1, 0, "GuildsListModel")
     qmlRegisterType(ChannelsListModel, "DiscordRecorder", 1, 0, "ChannelsListModel")
     qmlRegisterType(SetupManager, "DiscordRecorder", 1, 0, "SetupManager")
+    qmlRegisterType(DateFoldersListModel, "DiscordRecorder", 1, 0, "DateFoldersListModel")
 
     engine = QQmlApplicationEngine()
 
