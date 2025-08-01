@@ -11,14 +11,15 @@
 #include <QStandardPaths>
 #include <QFile>
 #include <QTextStream>
+#include <QEventLoop>
 #include <algorithm>
 
 SessionManager* SessionManager::s_instance = nullptr;
 
 SessionManager* SessionManager::create(QQmlEngine *qmlEngine, QJSEngine *jsEngine)
 {
-    Q_UNUSED(qmlEngine)
-    Q_UNUSED(jsEngine)
+    Q_UNUSED(qmlEngine);
+    Q_UNUSED(jsEngine);
     return instance();
 }
 
@@ -37,9 +38,13 @@ SessionManager::SessionManager(QObject *parent)
     , m_isProcessing(false)
     , m_ollamaModel("mistral:7b-instruct")
     , m_ollamaConnected(false)
+    , m_isDownloadingOllama(false)
+    , m_downloadProgress(0.0)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_summarizer(new DnDSummarizer(this))
     , m_connectionTimer(new QTimer(this))
+    , m_downloadReply(nullptr)
+    , m_installerProcess(nullptr)
 {
     m_yxobPath = getYxobDataPath();
 
@@ -311,6 +316,211 @@ void SessionManager::selectAllFiles(bool select)
     emit selectedFilesChanged();
 }
 
+bool SessionManager::checkOllamaInstallation()
+{
+    QNetworkRequest request(QUrl("http://localhost:11434/api/version"));
+
+    QNetworkReply* reply = m_networkManager->get(request);
+
+    QEventLoop loop;
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+
+    QTimer timeoutTimer;
+    timeoutTimer.setSingleShot(true);
+    timeoutTimer.setInterval(3000);
+    connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeoutTimer.start();
+
+    loop.exec();
+
+    bool isInstalled = (reply->error() == QNetworkReply::NoError);
+    reply->deleteLater();
+
+    if (isInstalled) {
+        setOllamaConnected(true);
+        emit ollamaInstallationDetected();
+    }
+
+    return isInstalled;
+}
+
+void SessionManager::downloadOllama()
+{
+    if (m_isDownloadingOllama) {
+        return;
+    }
+
+    setIsDownloadingOllama(true);
+    setDownloadStatus("Downloading Ollama installer...");
+    setDownloadProgress(0.0);
+
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    m_installerPath = tempDir + "/OllamaSetup.exe";
+
+    QFile::remove(m_installerPath);
+
+    QNetworkRequest request(QUrl("https://ollama.com/download/OllamaSetup.exe"));
+    request.setRawHeader("User-Agent", "DNDSummarizer/1.0");
+
+    m_downloadReply = m_networkManager->get(request);
+
+    connect(m_downloadReply, &QNetworkReply::downloadProgress,
+            this, &SessionManager::onOllamaDownloadProgress);
+    connect(m_downloadReply, &QNetworkReply::finished,
+            this, &SessionManager::onOllamaDownloadFinished);
+}
+
+void SessionManager::onOllamaDownloadProgress(qint64 bytesReceived, qint64 bytesTotal)
+{
+    if (bytesTotal > 0) {
+        qreal progress = static_cast<qreal>(bytesReceived) / bytesTotal;
+        setDownloadProgress(progress);
+
+        double receivedMB = bytesReceived / (1024.0 * 1024.0);
+        double totalMB = bytesTotal / (1024.0 * 1024.0);
+
+        setDownloadStatus(QString("Downloading... %1 MB / %2 MB")
+                              .arg(receivedMB, 0, 'f', 1)
+                              .arg(totalMB, 0, 'f', 1));
+    }
+}
+
+void SessionManager::onOllamaDownloadFinished()
+{
+    if (!m_downloadReply) {
+        return;
+    }
+
+    if (m_downloadReply->error() != QNetworkReply::NoError) {
+        setDownloadStatus("Download failed: " + m_downloadReply->errorString());
+        setIsDownloadingOllama(false);
+        m_downloadReply->deleteLater();
+        m_downloadReply = nullptr;
+        return;
+    }
+
+    QFile file(m_installerPath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        setDownloadStatus("Failed to save installer");
+        setIsDownloadingOllama(false);
+        m_downloadReply->deleteLater();
+        m_downloadReply = nullptr;
+        return;
+    }
+
+    file.write(m_downloadReply->readAll());
+    file.close();
+
+    m_downloadReply->deleteLater();
+    m_downloadReply = nullptr;
+
+    setDownloadProgress(1.0);
+    setDownloadStatus("Starting Ollama setup...");
+
+    QTimer::singleShot(500, this, [this]() {
+        launchOllamaInstaller();
+    });
+}
+
+void SessionManager::launchOllamaInstaller()
+{
+    if (!QFile::exists(m_installerPath)) {
+        setDownloadStatus("Installer file not found");
+        setIsDownloadingOllama(false);
+        return;
+    }
+
+    setDownloadStatus("Please complete the Ollama installation...");
+    setDownloadProgress(0.0);
+
+    m_installerProcess = new QProcess(this);
+
+    connect(m_installerProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &SessionManager::onOllamaInstallerFinished);
+
+    connect(m_installerProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        QString errorMsg;
+        switch (error) {
+        case QProcess::FailedToStart:
+            errorMsg = "Failed to start installer";
+            break;
+        case QProcess::Crashed:
+            errorMsg = "Installer crashed";
+            break;
+        default:
+            errorMsg = "Installer error occurred";
+            break;
+        }
+        setDownloadStatus(errorMsg);
+        setIsDownloadingOllama(false);
+
+        if (m_installerProcess) {
+            m_installerProcess->deleteLater();
+            m_installerProcess = nullptr;
+        }
+    });
+
+    qDebug() << "Starting Ollama installer:" << m_installerPath;
+    m_installerProcess->start(m_installerPath);
+
+    if (!m_installerProcess->waitForStarted(5000)) {
+        setDownloadStatus("Failed to start installer - please run manually");
+        setIsDownloadingOllama(false);
+        m_installerProcess->deleteLater();
+        m_installerProcess = nullptr;
+        return;
+    }
+
+    qDebug() << "Ollama installer started successfully, waiting for user to complete setup...";
+}
+
+void SessionManager::onOllamaInstallerFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    qDebug() << "Ollama installer finished with exit code:" << exitCode << "status:" << exitStatus;
+
+    setDownloadStatus("Installation completed. Checking Ollama...");
+
+    QFile::remove(m_installerPath);
+
+    if (m_installerProcess) {
+        m_installerProcess->deleteLater();
+        m_installerProcess = nullptr;
+    }
+
+    QTimer::singleShot(3000, this, [this]() {
+        checkOllamaAfterInstallation(0);
+    });
+}
+
+void SessionManager::checkOllamaAfterInstallation(int attempt)
+{
+    const int maxAttempts = 10;
+    const int delayMs = 2000;
+
+    qDebug() << "Checking for Ollama installation, attempt" << (attempt + 1) << "of" << maxAttempts;
+
+    if (checkOllamaInstallation()) {
+        setDownloadStatus("Ollama installed successfully!");
+        setIsDownloadingOllama(false);
+        qDebug() << "Ollama installation detected and confirmed";
+        return;
+    }
+
+    if (attempt < maxAttempts - 1) {
+        setDownloadStatus(QString("Waiting for Ollama to start... (%1/%2)")
+                              .arg(attempt + 1)
+                              .arg(maxAttempts));
+
+        QTimer::singleShot(delayMs, this, [this, attempt]() {
+            checkOllamaAfterInstallation(attempt + 1);
+        });
+    } else {
+        setDownloadStatus("Installation complete. Please restart the application if Ollama doesn't appear to be running.");
+        setIsDownloadingOllama(false);
+        qDebug() << "Max attempts reached, Ollama may need manual start or app restart";
+    }
+}
+
 void SessionManager::checkOllamaConnection()
 {
     QNetworkRequest request(QUrl("http://localhost:11434/api/tags"));
@@ -503,6 +713,30 @@ void SessionManager::setOllamaModel(const QString &model)
     if (m_ollamaModel != model) {
         m_ollamaModel = model;
         emit ollamaModelChanged();
+    }
+}
+
+void SessionManager::setIsDownloadingOllama(bool downloading)
+{
+    if (m_isDownloadingOllama != downloading) {
+        m_isDownloadingOllama = downloading;
+        emit isDownloadingOllamaChanged();
+    }
+}
+
+void SessionManager::setDownloadStatus(const QString &status)
+{
+    if (m_downloadStatus != status) {
+        m_downloadStatus = status;
+        emit downloadStatusChanged();
+    }
+}
+
+void SessionManager::setDownloadProgress(qreal progress)
+{
+    if (qAbs(m_downloadProgress - progress) > 0.001) {
+        m_downloadProgress = progress;
+        emit downloadProgressChanged();
     }
 }
 

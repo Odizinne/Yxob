@@ -48,6 +48,7 @@ qt_add_qml_module(DNDSummarizer
     URI Odizinne.DNDSummarizer
     VERSION 1.0
     QML_FILES ${QML_FILES} ${QML_SINGLETONS}
+    QML_FILES qml/OllamaSetup.qml
 )
 
 if(NOT WIN32 AND NOT APPLE)
