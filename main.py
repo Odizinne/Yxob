@@ -3,14 +3,21 @@ import os
 from PySide6.QtCore import QStandardPaths
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
-
+import logging
 from discord_recorder import DiscordRecorder
 from models import UserListModel, RecordingsListModel, GuildsListModel, ChannelsListModel
 from setup_manager import SetupManager
 import rc_main
 
+def configure_logging():
+    """Configure logging"""
+    os.environ["QT_LOGGING_RULES"] = "qt.qpa.*=false"
+    discord_player_logger = logging.getLogger('discord.player')
+    discord_player_logger.setLevel(logging.WARNING)
+
 
 def main():
+    configure_logging()
     app = QGuiApplication(sys.argv)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     icon = os.path.join(script_dir, "qml/icons/mic.png")

@@ -16,6 +16,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         self.user_session_count = {}
         self.excluded_users = excluded_users or []
         self._is_paused = False
+        self._ready_to_record = False
 
         # Speaking detection - simplified
         self.user_speaking_states = {}
@@ -37,6 +38,14 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         print(f"Recordings will be saved to: {self.recordings_dir}")
         print(f"Excluded users: {self.excluded_users}")
         print("Continuous recording mode - files will only close when recording is manually stopped")
+
+    def set_ready_to_record(self, ready):
+        """Set whether the sink should actually create and write to files"""
+        self._ready_to_record = ready
+        if ready:
+            print("Recording sink is now ready to create files")
+        else:
+            print("Recording sink will not create new files")
 
     def sanitize_filename(self, filename):
         """
@@ -142,19 +151,23 @@ class SimpleRecordingSink(voice_recv.AudioSink):
     
         user_id = str(user.id)
     
-        # Calculate audio level for speaking detection FIRST (even when paused)
+        # Calculate audio level for speaking detection FIRST (always do this)
         if hasattr(data, "pcm") and data.pcm:
             audio_level = self.calculate_audio_level(data.pcm)
-            # Always update speaking state, even when paused
+            # Always update speaking state, even when not ready to record
             self.update_speaking_state(user_id, user.display_name, audio_level)
     
-        # Track this user as seen
+        # Track this user as seen (always do this for UI purposes)
         if user_id not in self.seen_users:
             self.seen_users[user_id] = {
                 'name': user.display_name,
                 'id': user_id
             }
     
+        # Only create files and write audio if we're ready to record
+        if not self._ready_to_record:
+            return
+            
         # Create recording file if it doesn't exist yet
         if user_id not in self.files:
             # For continuous recording, we don't increment session count on reconnection

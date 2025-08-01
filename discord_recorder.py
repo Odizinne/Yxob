@@ -569,36 +569,6 @@ class DiscordRecorder(QObject):
                 self._start_recording_async(), self._worker.loop
             )
 
-    async def _start_recording_async(self):
-        try:
-            # Auto-join if not connected
-            if not self._voice_client:
-                await self._join_channel_async()
-                if not self._voice_client:
-                    return
-
-            # Pass excluded users to the sink
-            self._current_sink = SimpleRecordingSink(callback=self, excluded_users=self._excluded_users)
-            self._voice_client.listen(self._current_sink)
-
-            self._set_recording(True)
-            channel_name = "Unknown"
-            guild_name = "Unknown"
-
-            if self._voice_client.channel:
-                channel_name = self._voice_client.channel.name
-                guild_name = self._voice_client.channel.guild.name
-
-            self._set_status(f"Recording in {channel_name} ({guild_name})")
-            print("Recording started successfully")
-            
-            if self._excluded_users:
-                print(f"Excluded users: {self._excluded_users}")
-
-        except Exception as e:
-            self._set_status(f"Error starting recording: {str(e)}")
-            print(f"Recording error: {e}")
-
     @Slot()
     def stopRecording(self):
         if self._worker and self._worker.loop:
@@ -620,25 +590,62 @@ class DiscordRecorder(QObject):
                 self._resume_recording_async(), self._worker.loop
             )
 
+    async def _start_recording_async(self):
+        try:
+            # Auto-join if not connected
+            if not self._voice_client:
+                await self._join_channel_async()
+                if not self._voice_client:
+                    return
+    
+            # Create sink but don't start recording files yet
+            self._current_sink = SimpleRecordingSink(callback=self, excluded_users=self._excluded_users)
+            self._voice_client.listen(self._current_sink)
+            
+            # Small delay to let Discord settle, then enable recording
+            await asyncio.sleep(0.5)  # Half second delay
+            self._current_sink.set_ready_to_record(True)
+    
+            self._set_recording(True)
+            channel_name = "Unknown"
+            guild_name = "Unknown"
+    
+            if self._voice_client.channel:
+                channel_name = self._voice_client.channel.name
+                guild_name = self._voice_client.channel.guild.name
+    
+            self._set_status(f"Recording in {channel_name} ({guild_name})")
+            print("Recording started successfully")
+            
+            if self._excluded_users:
+                print(f"Excluded users: {self._excluded_users}")
+    
+        except Exception as e:
+            self._set_status(f"Error starting recording: {str(e)}")
+            print(f"Recording error: {e}")
+    
     async def _stop_recording_async(self):
         try:
             print("Stopping recording...")
-
+    
             # Always set recording to False first to ensure UI updates
             self._set_recording(False)
             self._set_paused(False)
-
+    
             if not self._voice_client:
                 self._set_status("Not connected to any voice channel")
                 return
-
+    
             if self._current_sink:
+                # Stop creating new files immediately
+                self._current_sink.set_ready_to_record(False)
+                
                 try:
                     self._voice_client.stop_listening()
                     print("Stopped listening to voice channel")
                 except Exception as e:
                     print(f"Error stopping listening: {e}")
-
+    
                 try:
                     recorded_users = self._current_sink.cleanup()
                     print(f"Cleaned up recordings for {len(recorded_users)} users")
@@ -646,72 +653,74 @@ class DiscordRecorder(QObject):
                     print(f"Error during sink cleanup: {e}")
                 finally:
                     self._current_sink = None
-
+    
             channel_name = "Unknown"
             guild_name = "Unknown"
-
+    
             if self._voice_client.channel:
                 channel_name = self._voice_client.channel.name
                 guild_name = self._voice_client.channel.guild.name
-
+    
             self._set_status(
                 f"Recording stopped - still in {channel_name} ({guild_name})"
             )
-
+    
             self.clearUserList.emit()
             self.refreshRecordings()
             print("Recording stopped successfully")
-
+    
         except Exception as e:
             # Ensure recording state is set to False even on error
             self._set_recording(False)
             self._set_status(f"Error stopping recording: {str(e)}")
             print(f"Stop recording error: {e}")
-
+    
     async def _pause_recording_async(self):
         try:
             if not self._is_recording or self._is_paused:
                 return
-
+    
             self._set_paused(True)
-
+    
             if self._current_sink:
                 self._current_sink.set_paused(True)
-
+                # Don't disable ready_to_record during pause - just pause writing
+    
             channel_name = "Unknown"
             guild_name = "Unknown"
-
+    
             if self._voice_client and self._voice_client.channel:
                 channel_name = self._voice_client.channel.name
                 guild_name = self._voice_client.channel.guild.name
-
+    
             self._set_status(f"Recording paused in {channel_name} ({guild_name})")
             print("Recording paused")
-
+    
         except Exception as e:
             self._set_status(f"Error pausing recording: {str(e)}")
             print(f"Pause error: {e}")
-
+    
     async def _resume_recording_async(self):
         try:
             if not self._is_recording or not self._is_paused:
                 return
-
+    
             self._set_paused(False)
-
+    
             if self._current_sink:
                 self._current_sink.set_paused(False)
-
+                # ready_to_record should still be True from when recording started
+    
             channel_name = "Unknown"
             guild_name = "Unknown"
-
+    
             if self._voice_client and self._voice_client.channel:
                 channel_name = self._voice_client.channel.name
                 guild_name = self._voice_client.channel.guild.name
-
+    
             self._set_status(f"Recording resumed in {channel_name} ({guild_name})")
             print("Recording resumed")
-
+    
         except Exception as e:
             self._set_status(f"Error resuming recording: {str(e)}")
             print(f"Resume error: {e}")
