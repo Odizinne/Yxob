@@ -55,19 +55,16 @@ def main():
 
         def on_setup_completed(token):
             print(f"Setup completed with token: {token[:10]}...")
-
             engine.clearComponentCache()
             engine.load("qml/Main.qml")
-
             recorder.startBot()
 
+        # Only connect to the explicit setup completion signal
         setup_manager.setupCompleted.connect(on_setup_completed)
 
     else:
         print("Setup already complete, loading main window...")
-
         engine.load("qml/Main.qml")
-
         recorder.startBot()
 
     if not engine.rootObjects():
