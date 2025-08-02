@@ -268,7 +268,7 @@ ApplicationWindow {
                                     text: {
                                         if (!name) return ""
                                         let filename = name.toString()
-                                        let parts = filename.replace("recording_", "").replace(".wav", "").split("_")
+                                        let parts = filename.replace("recording_", "").replace(".ogg", "").split("_")
                                         if (parts.length >= 3) {
                                             let date = parts[0]
                                             let time = parts[1]

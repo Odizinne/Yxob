@@ -201,7 +201,7 @@ class RecordingsListModel(QAbstractListModel):
                         date_folders.append(item)
             
             # Also check for any .wav files in the root (for backward compatibility)
-            root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
+            root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.ogg"))
             if root_wav_files:
                 date_folders.append("")  # Empty string represents root folder
             
@@ -220,7 +220,7 @@ class RecordingsListModel(QAbstractListModel):
                 transcripts_dir = os.path.join(folder_path, "transcripts")
                 display_folder = date_folder
     
-            wav_pattern = os.path.join(folder_path, "*.wav")
+            wav_pattern = os.path.join(folder_path, "*.ogg")
             wav_files = glob.glob(wav_pattern)
     
             for wav_file in sorted(wav_files):
@@ -418,7 +418,7 @@ class DateFoldersListModel(QAbstractListModel):
                     date_folders.append(item)
         
         # Also check for any .wav files in the root (for backward compatibility)
-        root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.wav"))
+        root_wav_files = glob.glob(os.path.join(base_recordings_dir, "*.ogg"))
         if root_wav_files:
             date_folders.append("")  # Empty string represents root folder
         
