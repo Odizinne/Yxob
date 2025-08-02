@@ -113,6 +113,46 @@ class DiscordRecorder(QObject):
         self._excluded_users = excluded_users_list
         print(f"Loaded excluded users: {self._excluded_users}")
 
+    @Slot(result=str)
+    def get_invitation_link(self):
+        """Generate an OAuth2 invitation link for the bot with specified permissions"""
+        if bot and bot.user:
+            client_id = str(bot.user.id)
+            permissions = 34603008  # Connect, Speak, Use Voice Activity
+            return f"https://discord.com/api/oauth2/authorize?client_id={client_id}&permissions={permissions}&scope=bot"
+        else:
+            return ""
+    
+    @Slot(result="QVariantMap")
+    def get_servers_with_channels(self):
+        """Get complete hierarchical structure of servers and their channels"""
+        result = {
+            "servers": [],
+            "channels": {}
+        }
+
+        if not bot.guilds:
+            return result
+
+        for guild in bot.guilds:
+            server_id = str(guild.id)
+            result["servers"].append({
+                "name": guild.name,
+                "id": server_id
+            })
+
+            channels = []
+            for channel in guild.voice_channels:
+                channels.append({
+                    "name": channel.name,
+                    "id": str(channel.id),
+                    "member_count": len(channel.members)
+                })
+
+            result["channels"][server_id] = channels
+
+        return result
+
     @Slot()
     def launchSummarizer(self):
         """Launch the DNDSummarizer executable"""

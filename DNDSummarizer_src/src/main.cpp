@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setWindowIcon(QIcon(":/icons/icon.png"));
     app.setOrganizationName("Odizinne");
-    app.setApplicationName("DNDSummarizer");
+    app.setApplicationName("Yxob");
     qmlRegisterUncreatableType<QAbstractItemModel>("QtQml", 2, 0, "QAbstractItemModel", "QAbstractItemModel is abstract");
     QQmlApplicationEngine engine;
 

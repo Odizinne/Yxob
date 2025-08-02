@@ -42,36 +42,347 @@ ApplicationWindow {
     TranscriptDialog {
         id: transcriptDialog
     }
+
+    ConfigurationWindow {
+        id: configurationWindow
+        visible: false
+        function show() {
+            if (!visible) {
+                x = window.x + 50
+                y = window.y + 50
+                visible = true
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Q"
+        enabled: true
+        onActivated: Qt.quit()
+    }
     
     header: ToolBar {
-        height: 50
+        height: 40
         Material.elevation: 6
         
         RowLayout {
-            anchors.centerIn: parent
-            spacing: 15
-            
-            Rectangle {
-                width: 8
-                height: 8
-                color: recorder && recorder.isRecording ? "#d13438" : Material.hintTextColor
-                radius: 4
-                visible: recorder ? recorder.isRecording : false
-                
-                SequentialAnimation on opacity {
-                    running: recorder ? recorder.isRecording : false
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.3; duration: 800 }
-                    NumberAnimation { to: 1.0; duration: 800 }
+            anchors.fill: parent
+            spacing: 0
+            property int buttonWidth: Math.max(menuButton.implicitWidth, serversToolButton.implicitWidth)
+
+            ToolButton {
+                id: menuButton
+                height: parent.height
+                text: "File"
+                Material.foreground: "white"
+                Layout.preferredWidth: parent.buttonWidth
+                Layout.preferredHeight: implicitHeight - 4
+                onClicked: mainMenu.visible = !mainMenu.visible
+                Menu {
+                    id: mainMenu
+                    topMargin: 40
+                    title: qsTr("File")
+                    width: 200
+                    visible: false
+
+                    MenuItem {
+                        text: "Settings"
+                        onTriggered: configurationWindow.show()
+                    }
+
+                    MenuSeparator {}
+
+                    MenuItem {
+                        onTriggered: Qt.quit()
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 16
+                            anchors.rightMargin: 16
+                            Label {
+                                text: "Exit"
+                                Layout.fillWidth: true
+                            }
+
+                            Label {
+                                text: "Ctrl + Q"
+                                opacity: 0.4
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
                 }
             }
-            
-            Label {
-                text: recordingTime
-                font.pixelSize: 20
-                font.bold: true
-                font.family: "Consolas, Monaco, monospace"
-                opacity: recorder && recorder.isRecording ? 1 : 0.5
+
+            ToolButton {
+                id: recordingsToolButton
+                text: "Recordings"
+                height: parent.height
+                Material.foreground: "white"
+                Layout.preferredHeight: implicitHeight - 4
+                onClicked: recordingsMenu.visible = !recordingsMenu.visible
+                
+                Menu {
+                    id: recordingsMenu
+                    title: qsTr("Recordings")
+                    topMargin: 40
+                    width: 200
+                    visible: false
+
+                    MenuItem {
+                        text: "Open Recordings Folder"
+                        enabled: recorder ? recorder.botConnected : false
+                        onTriggered: {
+                            if (recorder) {
+                                recorder.openRecordingsFolder()
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        text: "Transcript Recordings"
+                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
+                        onTriggered: {
+                            transcriptDialog.show()
+                        }
+                    }
+                }
+            }
+
+            ToolButton {
+                id: serversToolButton
+                text: "Servers"
+                Material.foreground: "white"
+                Layout.preferredWidth: parent.buttonWidth
+                Layout.preferredHeight: implicitHeight - 4
+                height: parent.height
+                enabled: recorder ? recorder.botConnected : false
+                property var serverData: ({servers: [], channels: {}})
+                property var noServersItem: null
+
+                function refreshServerData() {
+                    if (recorder) {
+                        serverData = recorder.get_servers_with_channels()
+                        serverMenuInstantiator.model = serverData.servers
+                    }
+                }
+
+                onClicked: {
+                    refreshServerData()
+                    serversMenu.visible = !serversMenu.visible
+                }
+
+                Connections {
+                    target: recorder
+                    function onBotConnectedChanged() {
+                        if (recorder && recorder.botConnected) {
+                            serversToolButton.refreshServerData()
+                        }
+                    }
+                    function onGuildsUpdated() {
+                        serversToolButton.refreshServerData()
+                    }
+                }
+
+                Menu {
+                    id: serversMenu
+                    title: qsTr("Servers")
+                    topMargin: 40
+                    width: 250
+                    visible: false
+
+                    MenuItem {
+                        text: "Refresh Server List"
+                        onTriggered: serversToolButton.refreshServerData()
+                    }
+
+                    MenuItem {
+                        text: "Invite Yxob to server"
+                        enabled: recorder ? recorder.botConnected : false
+                        onTriggered: {
+                            if (recorder) {
+                                let link = recorder.get_invitation_link()
+                                if (link) {
+                                    Qt.openUrlExternally(link)
+                                }
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        text: "Disconnect"
+                        enabled: recorder ? recorder.isJoined : false
+                        onTriggered: {
+                            if (recorder) {
+                                recorder.leaveChannel()
+                            }
+                            serversMenu.close()
+                        }
+                    }
+
+                    MenuSeparator {}
+                }
+
+                Instantiator {
+                    id: serverMenuInstantiator
+                    model: serversToolButton.serverData.servers
+
+                    delegate: Menu {
+                        id: serverMenu
+                        required property int index
+                        required property var modelData
+                        property var noChannelsItem: null
+                        title: modelData.name
+
+                        Instantiator {
+                            id: channelInstantiator
+                            model: serversToolButton.serverData.channels[modelData.id] || []
+
+                            delegate: MenuItem {
+                                required property int index
+                                required property var modelData
+
+                                text: modelData.name + " (" + (modelData.member_count || 0) + " members)"
+
+                                onTriggered: {
+                                    if (recorder) {
+                                        // Find the guild index
+                                        let guildIndex = -1
+                                        for (let i = 0; i < recorder.guildsModel.rowCount(); i++) {
+                                            let guildModelIndex = recorder.guildsModel.index(i, 0)
+                                            let guildId = recorder.guildsModel.data(guildModelIndex, Qt.UserRole)
+                                            if (guildId === serverMenu.modelData.id) {
+                                                guildIndex = i
+                                                break
+                                            }
+                                        }
+                                        
+                                        if (guildIndex >= 0) {
+                                            recorder.setSelectedGuild(guildIndex)
+                                            
+                                            // Find the channel index
+                                            let channelIndex = -1
+                                            for (let j = 0; j < recorder.channelsModel.rowCount(); j++) {
+                                                let channelModelIndex = recorder.channelsModel.index(j, 0)
+                                                let channelId = recorder.channelsModel.data(channelModelIndex, Qt.UserRole)
+                                                if (channelId === modelData.id) {
+                                                    channelIndex = j
+                                                    break
+                                                }
+                                            }
+                                            
+                                            if (channelIndex >= 0) {
+                                                recorder.setSelectedChannel(channelIndex)
+                                                // Auto-join the channel when selected
+                                                recorder.joinChannel()
+                                            }
+                                        }
+                                    }
+                                    serversMenu.close()
+                                }
+                            }
+
+                            onObjectAdded: function(index, object) {
+                                if (serverMenu.noChannelsItem) {
+                                    serverMenu.removeItem(serverMenu.noChannelsItem)
+                                    serverMenu.noChannelsItem = null
+                                }
+                                serverMenu.addItem(object)
+                            }
+
+                            onObjectRemoved: function(index, object) {
+                                serverMenu.removeItem(object)
+                                if (channelInstantiator.count === 0) {
+                                    serverMenu.noChannelsItem = Qt.createQmlObject(
+                                                'import QtQuick.Controls.Material; MenuItem { text: "No channels available"; enabled: false }',
+                                                serverMenu,
+                                                "noChannelsPlaceholder"
+                                                )
+                                    serverMenu.addItem(serverMenu.noChannelsItem)
+                                }
+                            }
+
+                            Component.onCompleted: {
+                                if (count === 0) {
+                                    serverMenu.noChannelsItem = Qt.createQmlObject(
+                                                'import QtQuick.Controls.Material; MenuItem { text: "No channels available"; enabled: false }',
+                                                serverMenu,
+                                                "noChannelsPlaceholder"
+                                                )
+                                    serverMenu.addItem(serverMenu.noChannelsItem)
+                                }
+                            }
+                        }
+                    }
+
+                    onObjectAdded: function(index, object) {
+                        if (serversToolButton.noServersItem) {
+                            serversMenu.removeItem(serversToolButton.noServersItem)
+                            serversToolButton.noServersItem = null
+                        }
+                        serversMenu.insertMenu(index + 4, object)
+                    }
+
+                    onObjectRemoved: function(index, object) {
+                        serversMenu.removeMenu(object)
+                        if (serverMenuInstantiator.count === 0) {
+                            serversToolButton.noServersItem = Qt.createQmlObject(
+                                        'import QtQuick.Controls.Material; MenuItem { text: "No servers available"; enabled: false }',
+                                        serversMenu,
+                                        "noServersPlaceholder"
+                                        )
+                            serversMenu.addItem(serversToolButton.noServersItem)
+                        }
+                    }
+
+                    Component.onCompleted: {
+                        if (count === 0) {
+                            serversToolButton.noServersItem = Qt.createQmlObject(
+                                        'import QtQuick.Controls.Material; MenuItem { text: "No servers available"; enabled: false }',
+                                        serversMenu,
+                                        "noServersPlaceholder"
+                                        )
+                            serversMenu.addItem(serversToolButton.noServersItem)
+                        }
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
+
+            // Recording time display
+            RowLayout {
+                spacing: 15
+                
+                Rectangle {
+                    width: 8
+                    height: 8
+                    color: recorder && recorder.isRecording ? "#d13438" : Material.hintTextColor
+                    radius: 4
+                    visible: recorder ? recorder.isRecording : false
+                    
+                    SequentialAnimation on opacity {
+                        running: recorder ? recorder.isRecording : false
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.3; duration: 800 }
+                        NumberAnimation { to: 1.0; duration: 800 }
+                    }
+                }
+                
+                Label {
+                    text: recordingTime
+                    font.pixelSize: 20
+                    font.bold: true
+                    font.family: "Consolas, Monaco, monospace"
+                    Material.foreground: "white"
+                    opacity: recorder && recorder.isRecording ? 1 : 0.5
+                }
+            }
+
+            Item {
+                width: 10
             }
         }
     }
@@ -152,16 +463,6 @@ ApplicationWindow {
                     Layout.alignment: Qt.AlignHCenter
                     spacing: 5
                     
-                    RoundButton {
-                        icon.source: "icons/discord.svg"
-                        icon.height: 14
-                        icon.width: 14
-                        Material.accent: Material.DeepPurple
-                        highlighted: true
-                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                        onClicked: discordDialog.open()
-                    }
-
                     Item {
                         Layout.fillWidth: true
                     }
@@ -219,14 +520,6 @@ ApplicationWindow {
 
                     Item {
                         Layout.fillWidth: true
-                    }
-
-                    RoundButton {
-                        icon.source: "icons/ban.png"
-                        icon.height: 14
-                        icon.width: 14
-                        enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                        onClicked: userExclusionDialog.show()
                     }
                 }
             }
@@ -426,159 +719,6 @@ ApplicationWindow {
                     text: "No users being recorded"
                     color: Material.hintTextColor
                     visible: usersList.count === 0
-                }
-            }
-        }
-
-        Button {
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignHCenter
-            text: "Transcript Recordings"
-            icon.source: "icons/transcript.png"
-            icon.height: 14
-            icon.width: 14
-            enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-            onClicked: {
-                transcriptDialog.show()
-            }
-        }
-    }
-
-    UserExclusionDialog {
-        id: userExclusionDialog
-    }
-
-    Dialog {
-        anchors.centerIn: parent
-        width: 320
-        id: discordDialog
-        modal: true
-        title: "Channel selection"
-        Material.elevation: 8
-
-        GridLayout {
-            anchors.fill: parent
-            rowSpacing: 12
-            columnSpacing: 12
-            columns: 2
-            
-            Label {
-                text: "Server"
-                font.pixelSize: 14
-                font.bold: true
-            }
-
-            ComboBox {
-                id: guildsCombo
-                Layout.fillWidth: true
-                textRole: "name"
-                model: recorder ? recorder.guildsModel : null
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                currentIndex: recorder ? recorder.selectedGuildIndex : -1
-                
-                onActivated: {
-                    if (recorder && currentIndex !== recorder.selectedGuildIndex) {
-                        recorder.setSelectedGuild(currentIndex)
-                    }
-                }
-                
-                Connections {
-                    target: recorder
-                    function onGuildsUpdated() {
-                        if (recorder && recorder.selectedGuildIndex >= 0) {
-                            guildsCombo.currentIndex = recorder.selectedGuildIndex
-                        }
-                    }
-                }
-                
-                delegate: ItemDelegate {
-                    width: guildsCombo.width
-                    text: name
-                    highlighted: guildsCombo.highlightedIndex === index
-                }
-            }
-            
-            Label {
-                text: "Channel"
-                font.pixelSize: 14
-                font.bold: true
-            }
-            
-            ComboBox {
-                id: channelsCombo
-                Layout.fillWidth: true
-                textRole: "name"
-                model: recorder ? recorder.channelsModel : null
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                
-                currentIndex: recorder ? recorder.selectedChannelIndex : -1
-                
-                onActivated: {
-                    if (recorder && currentIndex !== recorder.selectedChannelIndex) {
-                        recorder.setSelectedChannel(currentIndex)
-                    }
-                }
-                
-                Connections {
-                    target: recorder
-                    function onChannelsUpdated() {
-                        if (recorder && recorder.selectedChannelIndex >= 0) {
-                            channelsCombo.currentIndex = recorder.selectedChannelIndex
-                        }
-                    }
-                }
-                
-                delegate: ItemDelegate {
-                    width: channelsCombo.width
-                    highlighted: channelsCombo.highlightedIndex === index
-                    
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 10
-                        
-                        Label {
-                            text: name
-                            Layout.fillWidth: true
-                            font.pixelSize: 14
-                        }
-                        
-                        Rectangle {
-                            Layout.preferredWidth: 25
-                            Layout.preferredHeight: 18
-                            color: memberCount > 0 ? Material.accent : Material.hintTextColor
-                            radius: 9
-                            
-                            Label {
-                                anchors.centerIn: parent
-                                text: memberCount
-                                font.pixelSize: 10
-                                color: "white"
-                                font.bold: true
-                            }
-                        }
-                    }
-                }
-                
-                displayText: currentIndex >= 0 ? currentText + " (" + 
-                           (model && model.data ? model.data(model.index(currentIndex, 0), Qt.UserRole + 1) : "0") + 
-                           " members)" : "Select channel..."
-            }
-
-            Item {}
-            Button {
-                Layout.fillWidth: true
-                text: recorder && recorder.isJoined ? "Leave Channel" : "Join Channel"
-                enabled: recorder ? (recorder.botConnected && !recorder.isRecording) : false
-                highlighted: recorder && !recorder.isJoined
-                onClicked: {
-                    if (recorder) {
-                        if (recorder.isJoined) {
-                            recorder.leaveChannel()
-                        } else {
-                            recorder.joinChannel()
-                        }
-                    }
                 }
             }
         }

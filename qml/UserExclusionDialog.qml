@@ -18,12 +18,7 @@ ApplicationWindow {
     Material.primary: Colors.primaryColor
     color: Colors.backgroundColor
     
-    Settings {
-        id: settings
-        property string excludedUsers: ""
-    }
-    
-    property string currentExcludedUsers: settings.excludedUsers
+    property string currentExcludedUsers: YxobSettings.excludedUsers
     
     ColumnLayout {
         id: lyt
@@ -99,12 +94,12 @@ ApplicationWindow {
                 text: "Save"
                 highlighted: true
                 onClicked: {
-                    settings.excludedUsers = excludedUsersInput.text.trim()
-                    currentExcludedUsers = settings.excludedUsers
+                    YxobSettings.excludedUsers = excludedUsersInput.text.trim()
+                    currentExcludedUsers = YxobSettings.excludedUsers
                     
                     // Notify the recorder about the change
                     if (recorder) {
-                        recorder.updateExcludedUsers(settings.excludedUsers)
+                        recorder.updateExcludedUsers(YxobSettings.excludedUsers)
                     }
                     
                     exclusionDialog.close()
