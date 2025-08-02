@@ -21,6 +21,7 @@ ApplicationWindow {
         if (recorder && visible) {
             console.log("Refreshing date folders and recordings...")
             recorder.refreshDateFolders()
+            recorder.refreshRecordings()
         }
     }
 
@@ -79,6 +80,7 @@ ApplicationWindow {
                     onClicked: {
                         if (recorder) {
                             recorder.refreshDateFolders()
+                            recorder.refreshRecordings()
                         }
                     }
                 }
