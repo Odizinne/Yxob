@@ -49,6 +49,7 @@ def main():
 
     app.aboutToQuit.connect(cleanup)
 
+    # Check if initial setup is complete (just token validation now)
     if not setup_manager.is_setup_complete():
         print("Setup required, showing setup window...")
         engine.load("qml/SetupWindow.qml")
@@ -59,7 +60,6 @@ def main():
             engine.load("qml/Main.qml")
             recorder.startBot()
 
-        # Only connect to the explicit setup completion signal
         setup_manager.setupCompleted.connect(on_setup_completed)
 
     else:

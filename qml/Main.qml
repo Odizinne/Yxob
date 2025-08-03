@@ -159,19 +159,19 @@ ApplicationWindow {
                 enabled: recorder ? recorder.botConnected : false
                 property var serverData: ({servers: [], channels: {}})
                 property var noServersItem: null
-
+            
                 function refreshServerData() {
                     if (recorder) {
                         serverData = recorder.get_servers_with_channels()
                         serverMenuInstantiator.model = serverData.servers
                     }
                 }
-
+            
                 onClicked: {
-                    refreshServerData()
+                    // Don't refresh automatically - let user click items normally
                     serversMenu.visible = !serversMenu.visible
                 }
-
+            
                 Connections {
                     target: recorder
                     function onBotConnectedChanged() {
@@ -183,19 +183,19 @@ ApplicationWindow {
                         serversToolButton.refreshServerData()
                     }
                 }
-
+            
                 Menu {
                     id: serversMenu
                     title: qsTr("Servers")
                     topMargin: 40
                     width: 250
                     visible: false
-
+            
                     MenuItem {
                         text: "Refresh Server List"
                         onTriggered: serversToolButton.refreshServerData()
                     }
-
+            
                     MenuItem {
                         text: "Invite Yxob to server"
                         enabled: recorder ? recorder.botConnected : false
@@ -208,7 +208,7 @@ ApplicationWindow {
                             }
                         }
                     }
-
+            
                     MenuItem {
                         text: "Disconnect"
                         enabled: recorder ? recorder.isJoined : false
@@ -219,69 +219,40 @@ ApplicationWindow {
                             serversMenu.close()
                         }
                     }
-
+            
                     MenuSeparator {}
                 }
-
+            
                 Instantiator {
                     id: serverMenuInstantiator
                     model: serversToolButton.serverData.servers
-
+            
                     delegate: Menu {
                         id: serverMenu
                         required property int index
                         required property var modelData
                         property var noChannelsItem: null
                         title: modelData.name
-
+            
                         Instantiator {
                             id: channelInstantiator
                             model: serversToolButton.serverData.channels[modelData.id] || []
-
+            
                             delegate: MenuItem {
                                 required property int index
                                 required property var modelData
-
-                                text: modelData.name + " (" + (modelData.member_count || 0) + " members)"
-
+            
+                                text: modelData.name + " (" + (modelData.member_count || 0) + ")"
+            
                                 onTriggered: {
                                     if (recorder) {
-                                        // Find the guild index
-                                        let guildIndex = -1
-                                        for (let i = 0; i < recorder.guildsModel.rowCount(); i++) {
-                                            let guildModelIndex = recorder.guildsModel.index(i, 0)
-                                            let guildId = recorder.guildsModel.data(guildModelIndex, Qt.UserRole)
-                                            if (guildId === serverMenu.modelData.id) {
-                                                guildIndex = i
-                                                break
-                                            }
-                                        }
-                                        
-                                        if (guildIndex >= 0) {
-                                            recorder.setSelectedGuild(guildIndex)
-                                            
-                                            // Find the channel index
-                                            let channelIndex = -1
-                                            for (let j = 0; j < recorder.channelsModel.rowCount(); j++) {
-                                                let channelModelIndex = recorder.channelsModel.index(j, 0)
-                                                let channelId = recorder.channelsModel.data(channelModelIndex, Qt.UserRole)
-                                                if (channelId === modelData.id) {
-                                                    channelIndex = j
-                                                    break
-                                                }
-                                            }
-                                            
-                                            if (channelIndex >= 0) {
-                                                recorder.setSelectedChannel(channelIndex)
-                                                // Auto-join the channel when selected
-                                                recorder.joinChannel()
-                                            }
-                                        }
+                                        // Join directly by IDs - no need to mess with model indices
+                                        recorder.joinChannelById(serverMenu.modelData.id, modelData.id)
                                     }
                                     serversMenu.close()
                                 }
                             }
-
+            
                             onObjectAdded: function(index, object) {
                                 if (serverMenu.noChannelsItem) {
                                     serverMenu.removeItem(serverMenu.noChannelsItem)
@@ -289,7 +260,7 @@ ApplicationWindow {
                                 }
                                 serverMenu.addItem(object)
                             }
-
+            
                             onObjectRemoved: function(index, object) {
                                 serverMenu.removeItem(object)
                                 if (channelInstantiator.count === 0) {
@@ -301,7 +272,7 @@ ApplicationWindow {
                                     serverMenu.addItem(serverMenu.noChannelsItem)
                                 }
                             }
-
+            
                             Component.onCompleted: {
                                 if (count === 0) {
                                     serverMenu.noChannelsItem = Qt.createQmlObject(
@@ -314,7 +285,7 @@ ApplicationWindow {
                             }
                         }
                     }
-
+            
                     onObjectAdded: function(index, object) {
                         if (serversToolButton.noServersItem) {
                             serversMenu.removeItem(serversToolButton.noServersItem)
@@ -322,7 +293,7 @@ ApplicationWindow {
                         }
                         serversMenu.insertMenu(index + 4, object)
                     }
-
+            
                     onObjectRemoved: function(index, object) {
                         serversMenu.removeMenu(object)
                         if (serverMenuInstantiator.count === 0) {
@@ -334,7 +305,7 @@ ApplicationWindow {
                             serversMenu.addItem(serversToolButton.noServersItem)
                         }
                     }
-
+            
                     Component.onCompleted: {
                         if (count === 0) {
                             serversToolButton.noServersItem = Qt.createQmlObject(

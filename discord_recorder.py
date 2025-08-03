@@ -122,7 +122,79 @@ class DiscordRecorder(QObject):
             return f"https://discord.com/api/oauth2/authorize?client_id={client_id}&permissions={permissions}&scope=bot"
         else:
             return ""
+
+    @Slot(str, str)
+    def joinChannelById(self, guild_id, channel_id):
+        """Join a specific channel by guild ID and channel ID"""
+        if self._worker and self._worker.loop:
+            asyncio.run_coroutine_threadsafe(
+                self._join_channel_by_id_async(guild_id, channel_id), self._worker.loop
+            )
     
+    async def _join_channel_by_id_async(self, guild_id, channel_id):
+        """Join channel directly by IDs without relying on model indices"""
+        try:
+            if self._voice_client:
+                self._set_status("Already connected to a voice channel")
+                return
+    
+            if not bot.guilds:
+                self._set_status("No guilds found - bot needs to be in a server")
+                return
+    
+            # Find guild by ID
+            target_guild = None
+            for guild in bot.guilds:
+                if str(guild.id) == guild_id:
+                    target_guild = guild
+                    break
+                
+            if not target_guild:
+                self._set_status("Guild not found")
+                return
+    
+            # Find channel by ID
+            target_channel = None
+            for channel in target_guild.voice_channels:
+                if str(channel.id) == channel_id:
+                    target_channel = channel
+                    break
+                
+            if not target_channel:
+                self._set_status("Channel not found")
+                return
+    
+            print(f"Joining voice channel: {target_channel.name} in guild: {target_guild.name}")
+            self._voice_client = await target_channel.connect(
+                cls=voice_recv.VoiceRecvClient
+            )
+    
+            self._set_joined(True)
+            self._set_status(f"Joined {target_channel.name} ({target_guild.name})")
+            print("Successfully joined voice channel")
+    
+            # Update the model indices to match what we just joined
+            # Find guild index
+            for i, model_guild in enumerate(bot.guilds):
+                if model_guild.id == target_guild.id:
+                    self._selected_guild_index = i
+                    self.guildsUpdated.emit()
+                    break
+                
+            # Trigger channel update and set selected channel
+            await self._update_channels_for_guild(self._selected_guild_index)
+            
+            # Find channel index in the updated model
+            for i, channel in enumerate(target_guild.voice_channels):
+                if channel.id == target_channel.id:
+                    self._selected_channel_index = i
+                    self.channelsUpdated.emit()
+                    break
+                
+        except Exception as e:
+            self._set_status(f"Error joining channel: {str(e)}")
+            print(f"Join error: {e}")
+
     @Slot(result="QVariantMap")
     def get_servers_with_channels(self):
         """Get complete hierarchical structure of servers and their channels"""
