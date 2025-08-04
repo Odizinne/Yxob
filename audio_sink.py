@@ -1,6 +1,7 @@
+# In audio_sink.py - Replace the entire class with this simplified version:
+
 import os
 import threading
-import queue
 import re
 import struct
 import wave
@@ -15,8 +16,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         super().__init__()
         self.files = {}
         self.wav_files = {}           # user_id -> wave file object
-        self.audio_queues = {}        # user_id -> queue for audio data
-        self.writer_threads = {}      # user_id -> thread writing to wav
+        self.wav_locks = {}           # user_id -> threading lock for file access
         self.sessionid = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.callback = callback
         self.user_session_count = {}
@@ -43,7 +43,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         
         print(f"Recordings will be saved to: {self.recordings_dir}")
         print(f"Excluded users: {self.excluded_users}")
-        print("Continuous recording mode with WAV files")
+        print("Direct WAV writing mode (no queues)")
 
     def set_ready_to_record(self, ready):
         """Set whether the sink should actually create and write to files"""
@@ -124,64 +124,23 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         user_name_lower = user_display_name.lower()
         return user_name_lower in self.excluded_users
 
-    def start_wav_recorder(self, user_id, wav_filepath):
-        """Start WAV file recording for a user"""
+    def create_wav_file(self, user_id, wav_filepath):
+        """Create and open WAV file for a user"""
         try:
-            # Create WAV file with proper parameters
             wav_file = wave.open(wav_filepath, 'wb')
             wav_file.setnchannels(2)      # Stereo
             wav_file.setsampwidth(2)      # 16-bit
             wav_file.setframerate(48000)  # 48kHz
             
             self.wav_files[user_id] = wav_file
+            self.wav_locks[user_id] = threading.Lock()
             
-            # Create queue for audio data
-            audio_queue = queue.Queue(maxsize=200)
-            self.audio_queues[user_id] = audio_queue
-            
-            # Start writer thread
-            writer_thread = threading.Thread(
-                target=self._write_to_wav,
-                args=(user_id, wav_file, audio_queue),
-                daemon=True,
-                name=f"WAVWriter-{user_id}"
-            )
-            writer_thread.start()
-            self.writer_threads[user_id] = writer_thread
-            
-            print(f"Started WAV recording for user {user_id}")
+            print(f"Created WAV file for user {user_id}: {wav_filepath}")
             return True
             
         except Exception as e:
-            print(f"Error starting WAV recorder: {e}")
+            print(f"Error creating WAV file for user {user_id}: {e}")
             return False
-
-    def _write_to_wav(self, user_id, wav_file, audio_queue):
-        """Thread function to write audio data to WAV file"""
-        try:
-            frames_written = 0
-            while True:
-                try:
-                    audio_data = audio_queue.get(timeout=2.0)
-                    
-                    if audio_data is None:
-                        print(f"Received stop signal for user {user_id}, wrote {frames_written} frames")
-                        break
-                    
-                    try:
-                        wav_file.writeframes(audio_data)
-                        frames_written += len(audio_data) // 4  # 2 channels * 2 bytes per sample
-                    except Exception as e:
-                        print(f"Error writing to WAV file for user {user_id}: {e}")
-                        break
-                    
-                    audio_queue.task_done()
-                    
-                except queue.Empty:
-                    continue
-                    
-        except Exception as e:
-            print(f"Error in WAV writer thread for user {user_id}: {e}")
 
     def wants_opus(self):
         return False
@@ -211,7 +170,7 @@ class SimpleRecordingSink(voice_recv.AudioSink):
         if not self._ready_to_record:
             return
             
-        # Create WAV recorder if it doesn't exist yet
+        # Create WAV file if it doesn't exist yet
         if user_id not in self.wav_files:
             session_count = self.user_session_count.get(user_id, 0) + 1
             self.user_session_count[user_id] = session_count
@@ -222,23 +181,35 @@ class SimpleRecordingSink(voice_recv.AudioSink):
 
             filepath = os.path.join(self.recordings_dir, filename)
 
-            if self.start_wav_recorder(user_id, filepath):
+            if self.create_wav_file(user_id, filepath):
                 self.files[user_id] = filepath
                 print(f"User {user.display_name} - started WAV recording: {filename}")
                 
                 if self.callback:
                     self.callback.userDetected.emit(user.display_name, user_id)
             else:
-                print(f"Failed to start WAV recorder for {user.display_name}")
+                print(f"Failed to create WAV file for {user.display_name}")
                 return
 
-        # Queue audio data for recording (if not paused)
-        if (user_id in self.audio_queues and hasattr(data, "pcm") and 
+        # Write audio data directly to file (if not paused)
+        if (user_id in self.wav_files and hasattr(data, "pcm") and 
             data.pcm and not self._is_paused):
+            
             try:
-                self.audio_queues[user_id].put(data.pcm, timeout=0.1)
-            except queue.Full:
-                print(f"Audio queue full for user {user_id}, dropping frame")
+                # Use lock to ensure thread safety
+                with self.wav_locks[user_id]:
+                    self.wav_files[user_id].writeframes(data.pcm)
+                    
+            except Exception as e:
+                print(f"Error writing audio data for user {user_id}: {e}")
+                # Try to recover by removing the problematic file
+                if user_id in self.wav_files:
+                    try:
+                        self.wav_files[user_id].close()
+                    except:
+                        pass
+                    del self.wav_files[user_id]
+                    del self.wav_locks[user_id]
 
     def user_left_channel(self, user_id):
         """Called when user leaves channel"""
@@ -274,54 +245,37 @@ class SimpleRecordingSink(voice_recv.AudioSink):
             for user_id in user_ids:
                 self.callback.userStoppedSpeaking.emit(user_id)
         
-        # Stop all recordings gracefully
+        # Close all WAV files
         for user_id in user_ids:
             try:
                 user_name = self.seen_users.get(user_id, {}).get('name', user_id)
-                print(f"Stopping recording for {user_name}...")
+                print(f"Closing WAV file for {user_name}...")
                 
-                # Signal writer thread to stop
-                if user_id in self.audio_queues:
-                    try:
-                        while True:
-                            try:
-                                self.audio_queues[user_id].get_nowait()
-                            except queue.Empty:
-                                break
-                        
-                        self.audio_queues[user_id].put_nowait(None)
-                    except queue.Full:
-                        pass
-                
-                # Wait for writer thread to finish
-                if user_id in self.writer_threads:
-                    self.writer_threads[user_id].join(timeout=5.0)
-                    if self.writer_threads[user_id].is_alive():
-                        print(f"Writer thread timeout for {user_name}")
-                
-                # Close WAV file
-                if user_id in self.wav_files:
-                    try:
+                # Use lock to ensure thread safety during cleanup
+                if user_id in self.wav_locks:
+                    with self.wav_locks[user_id]:
+                        if user_id in self.wav_files:
+                            self.wav_files[user_id].close()
+                            print(f"Successfully saved WAV file for {user_name}")
+                            
+                            # Check file size
+                            filepath = self.files.get(user_id, "")
+                            if os.path.exists(filepath):
+                                file_size = os.path.getsize(filepath)
+                                print(f"WAV file size for {user_name}: {file_size} bytes")
+                else:
+                    # Fallback if no lock exists
+                    if user_id in self.wav_files:
                         self.wav_files[user_id].close()
-                        print(f"Successfully saved WAV file for {user_name}")
-                        
-                        # Check file size
-                        filepath = self.files.get(user_id, "")
-                        if os.path.exists(filepath):
-                            file_size = os.path.getsize(filepath)
-                            print(f"WAV file size for {user_name}: {file_size} bytes")
-                        
-                    except Exception as e:
-                        print(f"Error closing WAV file for {user_name}: {e}")
+                        print(f"Successfully saved WAV file for {user_name} (no lock)")
                 
             except Exception as e:
-                print(f"Error cleaning up recording for user {user_id}: {e}")
+                print(f"Error closing WAV file for user {user_id}: {e}")
         
         # Clear all data structures
         self.files.clear()
         self.wav_files.clear()
-        self.audio_queues.clear()
-        self.writer_threads.clear()
+        self.wav_locks.clear()
         self.user_session_count.clear()
         self.user_speaking_states.clear()
         self.seen_users.clear()
