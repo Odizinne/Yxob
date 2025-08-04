@@ -760,13 +760,26 @@ class DiscordRecorder(QObject):
                 if not self._voice_client:
                     return
     
-            # Create sink but don't start recording files yet
+            # Create sink and set it ready immediately
             self._current_sink = SimpleRecordingSink(callback=self, excluded_users=self._excluded_users)
-            self._voice_client.listen(self._current_sink)
+            self._current_sink.set_ready_to_record(True)  # Set ready immediately
             
-            # Small delay to let Discord settle, then enable recording
-            await asyncio.sleep(0.5)  # Half second delay
-            self._current_sink.set_ready_to_record(True)
+            # Detect users already in the channel BEFORE starting to listen
+            if self._voice_client.channel:
+                for member in self._voice_client.channel.members:
+                    if member.id != bot.user.id:  # Don't include the bot itself
+                        user_id = str(member.id)
+                        if not self._current_sink.is_user_excluded(member.display_name):
+                            print(f"Pre-existing user detected: {member.display_name}")
+                            self._current_sink.seen_users[user_id] = {
+                                'name': member.display_name,
+                                'id': user_id
+                            }
+                            # Add to UI immediately
+                            self.userDetected.emit(member.display_name, user_id)
+            
+            # Now start listening - sink is already ready to record
+            self._voice_client.listen(self._current_sink)
     
             self._set_recording(True)
             channel_name = "Unknown"
